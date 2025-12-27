@@ -1,3 +1,6 @@
+// Allow dead code during phase 1 development - these will be used by commands
+#![allow(dead_code, unused_imports)]
+
 mod fields;
 mod reader;
 

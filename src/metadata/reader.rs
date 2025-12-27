@@ -13,12 +13,9 @@ pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
         narrator: tag.take_strings_of(&mp4ameta::FreeformIdent::new(
             "com.apple.iTunes",
             "NARRATOR",
-        )).next().or_else(|| {
-            // Try standard narrator atom
-            None // mp4ameta doesn't have direct narrator support
-        }),
+        )).next(),
         series: tag.tv_show_name().map(String::from),
-        series_position: tag.tv_episode().map(|n| n as u32),
+        series_position: tag.tv_episode(),
         year: tag.year().and_then(|s| s.parse().ok()),
         description: tag.description().map(String::from),
         publisher: None, // mp4ameta doesn't expose publisher directly
