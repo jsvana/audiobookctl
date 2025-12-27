@@ -1,6 +1,20 @@
 [package]
 name = "audiobookctl"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+description = "CLI tool for reading, editing, and organizing m4b audiobook metadata"
+license = "MIT"
 
 [dependencies]
+clap = { version = "4", features = ["derive"] }
+mp4ameta = "0.11"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+colored = "2"
+thiserror = "2"
+anyhow = "1"
+
+[dev-dependencies]
+tempfile = "3"
+assert_cmd = "2"
+predicates = "3"
