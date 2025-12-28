@@ -144,7 +144,7 @@ impl FormatTemplate {
                         current_part.push_str(s);
                     }
                 }
-                Segment::Placeholder { name, padding, .. } => {
+                Segment::Placeholder { name, padding, optional } => {
                     let value = self.get_field_value(metadata, name, original_filename);
                     match value {
                         Some(v) => {
@@ -156,6 +156,11 @@ impl FormatTemplate {
                             // Sanitize for filesystem
                             let sanitized = sanitize_path_component(&formatted);
                             current_part.push_str(&sanitized);
+                        }
+                        None if *optional => {
+                            // Optional placeholder missing - mark current part as empty
+                            // so it gets filtered out
+                            // Don't add to missing list
                         }
                         None => {
                             if name != "filename" {
@@ -283,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_optional_placeholder() {
+    fn test_optional_placeholder_collapses() {
         let template = FormatTemplate::parse("{author}/{series?}/{title}/{filename}").unwrap();
         let metadata = AudiobookMetadata {
             title: Some("Book".to_string()),
@@ -291,7 +296,7 @@ mod tests {
             series: None,
             ..Default::default()
         };
-        // For now just verify it parses - we'll test collapsing in next task
-        assert!(template.generate_path(&metadata, "book.m4b").is_err());
+        let path = template.generate_path(&metadata, "book.m4b").unwrap();
+        assert_eq!(path, PathBuf::from("Author/Book/book.m4b"));
     }
 }
