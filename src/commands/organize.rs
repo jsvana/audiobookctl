@@ -1,0 +1,290 @@
+use anyhow::{bail, Context, Result};
+use colored::Colorize;
+use std::path::{Path, PathBuf};
+
+use crate::config::Config;
+use crate::organize::{
+    scan_directory, tree, FormatTemplate, OrganizePlan, PlannedOperation, UncategorizedFile,
+};
+
+/// Run the organize command
+pub fn run(
+    source: &Path,
+    dest_override: Option<&PathBuf>,
+    format_override: Option<&str>,
+    no_dry_run: bool,
+    allow_uncategorized: bool,
+    list_mode: bool,
+) -> Result<()> {
+    // Load config
+    let config = Config::load().context("Failed to load config")?;
+
+    // Get format string
+    let format_str = config
+        .format(format_override)
+        .context("No format specified. Set [organize] format in config or use --format")?;
+
+    // Get destination
+    let dest = config
+        .dest(dest_override)
+        .context("No destination specified. Set [organize] dest in config or use --dest")?;
+
+    // Parse format template
+    let template = FormatTemplate::parse(&format_str).context("Failed to parse format string")?;
+
+    // Validate source directory
+    if !source.exists() {
+        bail!("Source directory does not exist: {:?}", source);
+    }
+    if !source.is_dir() {
+        bail!("Source is not a directory: {:?}", source);
+    }
+
+    // Scan source directory
+    println!("Scanning {:?}...", source);
+    let files = scan_directory(source).context("Failed to scan source directory")?;
+
+    if files.is_empty() {
+        println!("No .m4b files found in {:?}", source);
+        return Ok(());
+    }
+
+    println!("Found {} .m4b file(s)", files.len());
+    println!();
+
+    // Build plan
+    let plan = OrganizePlan::build(&files, &template, &dest);
+
+    // Check for missing metadata (without --allow-uncategorized)
+    if !plan.uncategorized.is_empty() && !allow_uncategorized {
+        print_missing_metadata_error(&plan.uncategorized);
+        bail!("Cannot proceed with missing metadata. Use --allow-uncategorized to continue.");
+    }
+
+    // Check for conflicts
+    if !plan.conflicts.is_empty() {
+        print_conflicts(&plan.conflicts);
+        bail!("Cannot proceed with destination conflicts.");
+    }
+
+    // Display plan
+    if list_mode {
+        print_list_view(&plan.operations, &plan.uncategorized, allow_uncategorized);
+    } else {
+        print_tree_view(
+            &plan.operations,
+            &plan.uncategorized,
+            &dest,
+            allow_uncategorized,
+        );
+    }
+
+    // Execute if --no-dry-run
+    if no_dry_run {
+        execute_plan(
+            &plan.operations,
+            &plan.uncategorized,
+            &dest,
+            allow_uncategorized,
+        )?;
+    } else {
+        println!();
+        println!("{}", "Dry run - no files copied.".yellow());
+        println!("Run with {} to copy files.", "--no-dry-run".cyan());
+    }
+
+    Ok(())
+}
+
+fn print_missing_metadata_error(uncategorized: &[UncategorizedFile]) {
+    eprintln!(
+        "{}: {} file(s) are missing required metadata",
+        "Error".red().bold(),
+        uncategorized.len()
+    );
+    eprintln!();
+
+    for file in uncategorized {
+        eprintln!("  {}", file.source.display());
+        eprintln!(
+            "    {}: {}",
+            "missing".red(),
+            file.missing_fields.join(", ")
+        );
+        eprintln!();
+    }
+
+    eprintln!(
+        "Use '{}' or '{}' to add metadata.",
+        "audiobookctl edit <file>".cyan(),
+        "audiobookctl lookup <file>".cyan()
+    );
+    eprintln!(
+        "Or run with {} to place these in __uncategorized__/",
+        "--allow-uncategorized".cyan()
+    );
+}
+
+fn print_conflicts(conflicts: &[crate::organize::Conflict]) {
+    eprintln!(
+        "{}: {} destination conflict(s) detected",
+        "Error".red().bold(),
+        conflicts.len()
+    );
+    eprintln!();
+
+    for conflict in conflicts {
+        eprintln!("  {} → {}", "Conflict".red(), conflict.dest.display());
+
+        for source in &conflict.sources {
+            eprintln!("    from: {}", source.display());
+        }
+
+        if conflict.exists_on_disk {
+            eprintln!("    {} (file already exists)", "warning".yellow());
+        }
+
+        eprintln!();
+    }
+
+    eprintln!("Resolve by renaming files or adjusting metadata.");
+}
+
+fn print_tree_view(
+    operations: &[PlannedOperation],
+    uncategorized: &[UncategorizedFile],
+    dest: &Path,
+    allow_uncategorized: bool,
+) {
+    println!(
+        "Organizing {} file(s) to {:?}",
+        operations.len()
+            + if allow_uncategorized {
+                uncategorized.len()
+            } else {
+                0
+            },
+        dest
+    );
+    println!();
+
+    if !operations.is_empty() {
+        print!("{}", tree::render_tree(operations, dest));
+    }
+
+    if allow_uncategorized && !uncategorized.is_empty() {
+        println!();
+        let uncategorized_with_reasons: Vec<_> = uncategorized
+            .iter()
+            .map(|u| (u.source.clone(), u.missing_fields.clone()))
+            .collect();
+        print!(
+            "{}",
+            tree::render_uncategorized(&uncategorized_with_reasons)
+        );
+
+        // Print reasons
+        println!();
+        println!("Uncategorized file reasons:");
+        for file in uncategorized {
+            println!(
+                "  {} - missing: {}",
+                file.source
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default(),
+                file.missing_fields.join(", ")
+            );
+        }
+    }
+}
+
+fn print_list_view(
+    operations: &[PlannedOperation],
+    uncategorized: &[UncategorizedFile],
+    allow_uncategorized: bool,
+) {
+    println!(
+        "Organizing {} file(s)",
+        operations.len()
+            + if allow_uncategorized {
+                uncategorized.len()
+            } else {
+                0
+            }
+    );
+    println!();
+
+    print!("{}", tree::render_list(operations));
+
+    if allow_uncategorized && !uncategorized.is_empty() {
+        println!();
+        for file in uncategorized {
+            println!(
+                "{} → __uncategorized__/{} (missing: {})",
+                file.source.display(),
+                file.source
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default(),
+                file.missing_fields.join(", ")
+            );
+        }
+    }
+}
+
+fn execute_plan(
+    operations: &[PlannedOperation],
+    uncategorized: &[UncategorizedFile],
+    dest: &Path,
+    allow_uncategorized: bool,
+) -> Result<()> {
+    println!();
+    println!("{}", "Copying files...".green());
+
+    // Copy organized files
+    for op in operations {
+        // Create parent directories
+        if let Some(parent) = op.dest.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create directory {:?}", parent))?;
+        }
+
+        // Copy file
+        std::fs::copy(&op.source, &op.dest)
+            .with_context(|| format!("Failed to copy {:?} to {:?}", op.source, op.dest))?;
+
+        println!("  {} {}", "✓".green(), op.dest.display());
+    }
+
+    // Copy uncategorized files
+    if allow_uncategorized && !uncategorized.is_empty() {
+        let uncategorized_dir = dest.join("__uncategorized__");
+        std::fs::create_dir_all(&uncategorized_dir)
+            .with_context(|| format!("Failed to create {:?}", uncategorized_dir))?;
+
+        for file in uncategorized {
+            let filename = file.source.file_name().context("File has no filename")?;
+            let dest_path = uncategorized_dir.join(filename);
+
+            std::fs::copy(&file.source, &dest_path)
+                .with_context(|| format!("Failed to copy {:?} to {:?}", file.source, dest_path))?;
+
+            println!("  {} {} (uncategorized)", "✓".yellow(), dest_path.display());
+        }
+    }
+
+    println!();
+    println!(
+        "{} {} file(s) copied.",
+        "Done!".green().bold(),
+        operations.len()
+            + if allow_uncategorized {
+                uncategorized.len()
+            } else {
+                0
+            }
+    );
+
+    Ok(())
+}

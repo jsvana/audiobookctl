@@ -1,8 +1,10 @@
 mod cli;
 mod commands;
+mod config;
 mod editor;
 mod lookup;
 mod metadata;
+mod organize;
 mod safety;
 
 use anyhow::Result;
@@ -42,6 +44,33 @@ fn main() -> Result<()> {
             no_backup,
         } => {
             commands::lookup::run(&file, no_dry_run, yes, no_backup)?;
+        }
+        Commands::Organize {
+            source,
+            dest,
+            format,
+            no_dry_run,
+            allow_uncategorized,
+            list,
+        } => {
+            commands::organize::run(
+                &source,
+                dest.as_ref(),
+                format.as_deref(),
+                no_dry_run,
+                allow_uncategorized,
+                list,
+            )?;
+        }
+        Commands::Fix {
+            dest,
+            no_dry_run,
+            show_all,
+        } => {
+            commands::fix::run(dest.as_ref(), no_dry_run, show_all)?;
+        }
+        Commands::Fields => {
+            commands::fields::run()?;
         }
     }
 

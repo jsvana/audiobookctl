@@ -81,4 +81,49 @@ pub enum Commands {
         #[arg(long = "no-backup-i-void-my-warranty")]
         no_backup: bool,
     },
+
+    /// Organize audiobooks into a structured directory format
+    Organize {
+        /// Source directory containing .m4b files to organize
+        #[arg(long)]
+        source: PathBuf,
+
+        /// Destination directory (uses config default if not specified)
+        #[arg(long)]
+        dest: Option<PathBuf>,
+
+        /// Format string for directory structure (uses config default if not specified)
+        #[arg(long)]
+        format: Option<String>,
+
+        /// Actually copy files (default: dry-run)
+        #[arg(long)]
+        no_dry_run: bool,
+
+        /// Allow files with missing metadata (placed in __uncategorized__)
+        #[arg(long)]
+        allow_uncategorized: bool,
+
+        /// Show source→dest list instead of tree view
+        #[arg(long)]
+        list: bool,
+    },
+
+    /// Scan organized library and fix non-compliant paths
+    Fix {
+        /// Library directory to scan (uses config default if not specified)
+        #[arg(long)]
+        dest: Option<PathBuf>,
+
+        /// Actually move files (default: dry-run)
+        #[arg(long)]
+        no_dry_run: bool,
+
+        /// Show all files including compliant ones
+        #[arg(long)]
+        show_all: bool,
+    },
+
+    /// List available format placeholders for organizing
+    Fields,
 }
