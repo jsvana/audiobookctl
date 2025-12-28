@@ -15,6 +15,10 @@ fn main() -> Result<()> {
         Commands::Show { file, json, field } => {
             commands::show::run(&file, json, field.as_deref(), cli.quiet)?;
         }
+        Commands::Edit { .. } => {
+            // TODO: Implement edit command handler
+            anyhow::bail!("Edit command not yet implemented");
+        }
     }
 
     Ok(())

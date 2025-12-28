@@ -33,4 +33,34 @@ pub enum Commands {
         #[arg(long)]
         field: Option<String>,
     },
+
+    /// Edit metadata in $EDITOR with diff preview
+    Edit {
+        /// Path to the m4b file
+        file: Option<PathBuf>,
+
+        /// Actually apply changes (default: dry-run)
+        #[arg(long)]
+        no_dry_run: bool,
+
+        /// Skip confirmation prompt
+        #[arg(long)]
+        yes: bool,
+
+        /// Skip creating backup file
+        #[arg(long = "no-backup-i-void-my-warranty")]
+        no_backup: bool,
+
+        /// Clear pending edit(s)
+        #[arg(long)]
+        clear: bool,
+
+        /// Delete backup after verifying changes
+        #[arg(long)]
+        commit: bool,
+
+        /// Delete all backup files recursively
+        #[arg(long)]
+        commit_all: bool,
+    },
 }
