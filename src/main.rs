@@ -72,6 +72,9 @@ fn main() -> Result<()> {
         Commands::Fields => {
             commands::fields::run()?;
         }
+        Commands::Init { force } => {
+            commands::init::run(force)?;
+        }
     }
 
     Ok(())

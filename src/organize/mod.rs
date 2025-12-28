@@ -5,4 +5,4 @@ pub mod tree;
 
 pub use format::{FormatTemplate, PLACEHOLDERS};
 pub use planner::{Conflict, FixPlan, OrganizePlan, PlannedOperation, UncategorizedFile};
-pub use scanner::{scan_directory, ScannedFile};
+pub use scanner::scan_directory;

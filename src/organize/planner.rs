@@ -93,16 +93,6 @@ impl OrganizePlan {
             conflicts,
         }
     }
-
-    /// Check if the plan has any issues that would prevent execution
-    pub fn has_issues(&self, allow_uncategorized: bool) -> bool {
-        !self.conflicts.is_empty() || (!allow_uncategorized && !self.uncategorized.is_empty())
-    }
-
-    /// Get count of files that will be processed
-    pub fn operation_count(&self) -> usize {
-        self.operations.len()
-    }
 }
 
 /// Result of planning a fix operation (for already-organized files)
@@ -182,16 +172,6 @@ impl FixPlan {
             uncategorized,
             conflicts,
         }
-    }
-
-    /// Check if the plan has any issues that would prevent execution
-    pub fn has_issues(&self) -> bool {
-        !self.conflicts.is_empty()
-    }
-
-    /// Get count of files that need fixing
-    pub fn fix_count(&self) -> usize {
-        self.needs_fix.len()
     }
 }
 

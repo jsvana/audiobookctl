@@ -99,21 +99,6 @@ impl FormatTemplate {
         Ok(Self { segments })
     }
 
-    /// Get the list of required placeholder names (excluding 'filename' which is always available)
-    pub fn required_fields(&self) -> Vec<String> {
-        self.segments
-            .iter()
-            .filter_map(|s| {
-                if let Segment::Placeholder { name, .. } = s {
-                    if name != "filename" {
-                        return Some(name.clone());
-                    }
-                }
-                None
-            })
-            .collect()
-    }
-
     /// Generate a path from metadata and original filename
     /// Returns None for any missing required field, along with the list of missing fields
     pub fn generate_path(
@@ -240,8 +225,8 @@ mod tests {
 
     #[test]
     fn test_parse_simple_format() {
-        let template = FormatTemplate::parse("{author}/{title}/{filename}").unwrap();
-        assert_eq!(template.required_fields(), vec!["author", "title"]);
+        // Just verify parsing succeeds
+        FormatTemplate::parse("{author}/{title}/{filename}").unwrap();
     }
 
     #[test]

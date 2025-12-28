@@ -126,4 +126,11 @@ pub enum Commands {
 
     /// List available format placeholders for organizing
     Fields,
+
+    /// Create a config file interactively
+    Init {
+        /// Overwrite existing config file
+        #[arg(long)]
+        force: bool,
+    },
 }
