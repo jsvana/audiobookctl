@@ -1,6 +1,7 @@
 mod cli;
 mod commands;
 mod editor;
+mod lookup;
 mod metadata;
 mod safety;
 
