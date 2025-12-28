@@ -35,6 +35,14 @@ fn main() -> Result<()> {
                 commit_all,
             )?;
         }
+        Commands::Lookup {
+            file,
+            no_dry_run,
+            yes,
+            no_backup,
+        } => {
+            commands::lookup::run(&file, no_dry_run, yes, no_backup)?;
+        }
     }
 
     Ok(())

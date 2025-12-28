@@ -63,4 +63,22 @@ pub enum Commands {
         #[arg(long)]
         commit_all: bool,
     },
+
+    /// Look up metadata from online sources (Audnexus, Open Library)
+    Lookup {
+        /// Path to the m4b file
+        file: PathBuf,
+
+        /// Actually apply changes (default: dry-run)
+        #[arg(long)]
+        no_dry_run: bool,
+
+        /// Skip confirmation prompt
+        #[arg(long)]
+        yes: bool,
+
+        /// Skip creating backup file
+        #[arg(long = "no-backup-i-void-my-warranty")]
+        no_backup: bool,
+    },
 }
