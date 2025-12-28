@@ -1,4 +1,5 @@
 mod cli;
+mod commands;
 mod metadata;
 
 use anyhow::Result;
@@ -10,11 +11,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Show { file, json, field } => {
-            // Placeholder - will be implemented in Task 5
-            println!(
-                "Show command for: {:?}, json={}, field={:?}",
-                file, json, field
-            );
+            commands::show::run(&file, json, field.as_deref(), cli.quiet)?;
         }
     }
 
