@@ -1,6 +1,7 @@
 mod cli;
 mod commands;
 mod metadata;
+mod safety;
 
 use anyhow::Result;
 use clap::Parser;
