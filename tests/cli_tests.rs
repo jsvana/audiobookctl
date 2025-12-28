@@ -35,3 +35,40 @@ fn test_version() {
         .success()
         .stdout(predicate::str::contains("audiobookctl"));
 }
+
+#[test]
+fn test_edit_help() {
+    let mut cmd = Command::cargo_bin("audiobookctl").unwrap();
+    cmd.args(["edit", "--help"]);
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Edit metadata"))
+        .stdout(predicate::str::contains("--no-dry-run"))
+        .stdout(predicate::str::contains("--no-backup-i-void-my-warranty"));
+}
+
+#[test]
+fn test_edit_missing_file() {
+    let mut cmd = Command::cargo_bin("audiobookctl").unwrap();
+    cmd.args(["edit", "/nonexistent/file.m4b"]);
+    cmd.assert()
+        .failure();
+}
+
+#[test]
+fn test_edit_clear_no_file() {
+    let mut cmd = Command::cargo_bin("audiobookctl").unwrap();
+    cmd.args(["edit", "--clear"]);
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Cleared"));
+}
+
+#[test]
+fn test_edit_commit_all_no_backups() {
+    let mut cmd = Command::cargo_bin("audiobookctl").unwrap();
+    cmd.args(["edit", "--commit-all"]);
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("No backup files found"));
+}
