@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 description = "CLI tool for reading, editing, and organizing m4b audiobook metadata"
 license = "MIT"
+repository = "https://github.com/jsvana/audiobookctl"
+keywords = ["audiobook", "m4b", "metadata", "cli"]
+categories = ["command-line-utilities", "multimedia"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
