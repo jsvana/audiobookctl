@@ -2,7 +2,14 @@ use crate::metadata::AudiobookMetadata;
 use anyhow::{bail, Result};
 use std::path::PathBuf;
 
-/// Available format placeholders with descriptions
+/// Available format placeholders with descriptions.
+///
+/// Use `{field}` for required placeholders (path generation fails if missing).
+/// Use `{field?}` for optional placeholders (path collapses if missing).
+///
+/// Example: `{author}/{series?}/{title}/{filename}`
+/// - With series: `Author/Series/Title/file.m4b`
+/// - Without series: `Author/Title/file.m4b`
 pub const PLACEHOLDERS: &[(&str, &str)] = &[
     ("author", "Author name"),
     ("title", "Book title"),
@@ -149,7 +156,11 @@ impl FormatTemplate {
                         current_part.push_str(s);
                     }
                 }
-                Segment::Placeholder { name, padding, optional } => {
+                Segment::Placeholder {
+                    name,
+                    padding,
+                    optional,
+                } => {
                     let value = self.get_field_value(metadata, name, original_filename);
                     match value {
                         Some(v) => {
@@ -320,7 +331,9 @@ mod tests {
 
     #[test]
     fn test_optional_placeholder_with_padding() {
-        let template = FormatTemplate::parse("{author}/{series?}/{series_position?:02}/{title}/{filename}").unwrap();
+        let template =
+            FormatTemplate::parse("{author}/{series?}/{series_position?:02}/{title}/{filename}")
+                .unwrap();
 
         // With both present
         let metadata_full = AudiobookMetadata {
@@ -350,7 +363,7 @@ mod tests {
         let template = FormatTemplate::parse("{author}/{series?}/{title}/{filename}").unwrap();
         let metadata = AudiobookMetadata {
             title: Some("Book".to_string()),
-            author: None,  // Required field missing
+            author: None, // Required field missing
             series: None,
             ..Default::default()
         };
