@@ -35,28 +35,35 @@ pub struct MergedMetadata {
 
 /// Merge a single string field from multiple sources
 ///
+/// Existing metadata is treated as a source ("file") and included in conflict detection.
+/// If existing value differs from API values, it's shown as a conflict so user can choose.
+///
 /// Priority:
-/// 1. If existing metadata has a value, use it (Agreed)
-/// 2. If all sources with values agree, use that value (Agreed)
-/// 3. If sources disagree, first source's value is selected (Conflicting)
-/// 4. If no source has a value, return Empty
+/// 1. If all sources (including file) agree, use that value (Agreed)
+/// 2. If sources disagree, existing file value is selected (Conflicting)
+/// 3. If no source has a value, return Empty
 fn merge_field(
     existing: &Option<String>,
     results: &[(String, Option<String>)], // (source_name, value)
 ) -> FieldValue {
-    // Priority 1: Existing metadata takes precedence
-    if let Some(value) = existing {
-        return FieldValue::Agreed(value.clone());
+    // Build list of all sources including existing file metadata
+    let mut all_sources: Vec<(String, Option<String>)> = Vec::new();
+
+    // Add existing metadata as "file" source
+    if existing.is_some() {
+        all_sources.push(("file".to_string(), existing.clone()));
     }
 
+    // Add API results
+    all_sources.extend(results.iter().cloned());
+
     // Collect all sources that have a value for this field
-    let values_with_sources: Vec<(&String, &String)> = results
+    let values_with_sources: Vec<(&String, &String)> = all_sources
         .iter()
         .filter_map(|(source, value)| value.as_ref().map(|v| (source, v)))
         .collect();
 
     if values_with_sources.is_empty() {
-        // Priority 4: No source has this field
         return FieldValue::Empty;
     }
 
@@ -65,11 +72,15 @@ fn merge_field(
     let all_agree = values_with_sources.iter().all(|(_, v)| *v == first_value);
 
     if all_agree {
-        // Priority 2: All sources agree (or only one source)
         FieldValue::Agreed(first_value.clone())
     } else {
-        // Priority 3: Sources disagree - first source's value is selected
-        let selected = first_value.clone();
+        // Sources disagree - existing file value is selected by default (if present)
+        let selected = if let Some(existing_val) = existing {
+            existing_val.clone()
+        } else {
+            first_value.clone()
+        };
+
         let alternatives: Vec<(String, String)> = values_with_sources
             .iter()
             .map(|(source, value)| ((*source).clone(), (*value).clone()))
@@ -99,13 +110,15 @@ fn merge_field_u32(
     merge_field(&existing_str, &results_str)
 }
 
-/// Merge results from multiple sources, prioritizing existing metadata
+/// Merge results from multiple sources, showing conflicts when values differ
+///
+/// Existing file metadata is treated as a source and compared with API results.
+/// This allows users to see and choose between different values.
 ///
 /// Priority order:
-/// 1. If existing metadata has a value, use it (user's data takes priority)
-/// 2. If all sources agree, return Agreed
-/// 3. If sources disagree, return Conflicting (first source's value selected)
-/// 4. If no source has value, return Empty
+/// 1. If all sources (file + APIs) agree, return Agreed
+/// 2. If sources disagree, return Conflicting (file value selected by default)
+/// 3. If no source has value, return Empty
 pub fn merge_results(existing: &AudiobookMetadata, results: &[LookupResult]) -> MergedMetadata {
     // Build (source_name, value) tuples for each field
 
@@ -201,7 +214,8 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_field_existing_takes_priority() {
+    fn test_merge_field_existing_shows_conflict() {
+        // When existing value differs from API values, show conflict with existing as default
         let existing = Some("The Martian".to_string());
         let results = vec![
             ("audnexus".to_string(), Some("Martian".to_string())),
@@ -212,7 +226,18 @@ mod tests {
         ];
 
         let result = merge_field(&existing, &results);
-        assert_eq!(result, FieldValue::Agreed("The Martian".to_string()));
+        match result {
+            FieldValue::Conflicting {
+                selected,
+                alternatives,
+            } => {
+                assert_eq!(selected, "The Martian"); // Existing is selected by default
+                assert_eq!(alternatives.len(), 3); // file + 2 APIs
+                assert_eq!(alternatives[0].0, "file");
+                assert_eq!(alternatives[0].1, "The Martian");
+            }
+            _ => panic!("Expected Conflicting, got {:?}", result),
+        }
     }
 
     #[test]
@@ -293,7 +318,8 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_field_u32_existing_takes_priority() {
+    fn test_merge_field_u32_existing_shows_conflict() {
+        // When existing value differs from API values, show conflict with existing as default
         let existing = Some(2015u32);
         let results = vec![
             ("audnexus".to_string(), Some(2014u32)),
@@ -301,7 +327,17 @@ mod tests {
         ];
 
         let result = merge_field_u32(&existing, &results);
-        assert_eq!(result, FieldValue::Agreed("2015".to_string()));
+        match result {
+            FieldValue::Conflicting {
+                selected,
+                alternatives,
+            } => {
+                assert_eq!(selected, "2015"); // Existing is selected by default
+                assert_eq!(alternatives.len(), 3); // file + 2 APIs (both with same value)
+                assert_eq!(alternatives[0], ("file".to_string(), "2015".to_string()));
+            }
+            _ => panic!("Expected Conflicting, got {:?}", result),
+        }
     }
 
     #[test]
@@ -316,7 +352,8 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_results_existing_metadata_priority() {
+    fn test_merge_results_existing_metadata_shows_conflicts() {
+        // When existing metadata differs from API, show as conflict with existing selected
         let existing = AudiobookMetadata {
             title: Some("My Title".to_string()),
             author: Some("My Author".to_string()),
@@ -332,9 +369,26 @@ mod tests {
         let results = vec![audnexus];
 
         let merged = merge_results(&existing, &results);
-        assert_eq!(merged.title, FieldValue::Agreed("My Title".to_string()));
-        assert_eq!(merged.author, FieldValue::Agreed("My Author".to_string()));
-        assert_eq!(merged.year, FieldValue::Agreed("2020".to_string()));
+
+        // All fields should be Conflicting since existing differs from API
+        match &merged.title {
+            FieldValue::Conflicting { selected, .. } => {
+                assert_eq!(selected, "My Title"); // Existing selected by default
+            }
+            _ => panic!("Expected title to be Conflicting"),
+        }
+        match &merged.author {
+            FieldValue::Conflicting { selected, .. } => {
+                assert_eq!(selected, "My Author");
+            }
+            _ => panic!("Expected author to be Conflicting"),
+        }
+        match &merged.year {
+            FieldValue::Conflicting { selected, .. } => {
+                assert_eq!(selected, "2020");
+            }
+            _ => panic!("Expected year to be Conflicting"),
+        }
     }
 
     #[test]

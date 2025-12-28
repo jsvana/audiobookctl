@@ -1,10 +1,42 @@
-//! API clients for Audnexus and Open Library
+//! API clients for Audible, Audnexus, and Open Library
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use tracing::warn;
 
 const USER_AGENT: &str = "audiobookctl/0.1.0";
+
+// ============================================================================
+// Audible API Response Structs
+// ============================================================================
+
+/// Search response from Audible API
+#[derive(Debug, Deserialize)]
+struct AudibleSearchResponse {
+    #[serde(default)]
+    products: Vec<AudibleProduct>,
+}
+
+/// Single product from Audible search
+#[derive(Debug, Deserialize)]
+struct AudibleProduct {
+    asin: Option<String>,
+    title: Option<String>,
+    #[serde(default)]
+    authors: Vec<AudiblePerson>,
+    #[serde(default)]
+    narrators: Vec<AudiblePerson>,
+    publisher_name: Option<String>,
+    publisher_summary: Option<String>,
+    release_date: Option<String>,
+    #[allow(dead_code)]
+    runtime_length_min: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AudiblePerson {
+    name: Option<String>,
+}
 
 /// Result from a single API source
 #[derive(Debug, Clone)]
@@ -96,82 +128,47 @@ struct OpenLibraryDoc {
 
 /// Fetch metadata from Audnexus API
 ///
-/// Prefers ASIN lookup if provided, otherwise searches by title/author.
-/// Returns Ok(None) if no results found, Err only for actual errors.
+/// Requires ASIN for lookup - Audnexus does not support title/author search.
+/// Returns Ok(None) if no ASIN provided or not found, Err only for actual errors.
 pub async fn fetch_audnexus(
     client: &reqwest::Client,
-    title: Option<&str>,
-    author: Option<&str>,
+    _title: Option<&str>,
+    _author: Option<&str>,
     asin: Option<&str>,
 ) -> Result<Option<LookupResult>> {
-    // If ASIN is provided, use direct lookup (more reliable)
-    if let Some(asin) = asin {
-        let url = format!("https://api.audnex.us/books/{}", asin);
-        let response = client
-            .get(&url)
-            .header("User-Agent", USER_AGENT)
-            .send()
-            .await
-            .context("Failed to send request to Audnexus")?;
-
-        if response.status() == reqwest::StatusCode::NOT_FOUND {
-            // ASIN not found, fall through to search
-            warn!("ASIN {} not found in Audnexus, trying search", asin);
-        } else if response.status().is_success() {
-            let book: AudnexusBook = response
-                .json()
-                .await
-                .context("Failed to parse Audnexus response")?;
-            return Ok(Some(audnexus_book_to_result(book)));
-        } else {
-            warn!(
-                "Audnexus ASIN lookup returned status {}, trying search",
-                response.status()
-            );
-        }
-    }
-
-    // Search by title and/or author
-    if title.is_none() && author.is_none() {
+    // Audnexus only supports ASIN lookup, no search endpoint
+    let Some(asin) = asin else {
         return Ok(None);
-    }
+    };
 
-    let mut url = String::from("https://api.audnex.us/books?");
-    let mut params = Vec::new();
-
-    if let Some(title) = title {
-        params.push(format!("title={}", urlencoding::encode(title)));
-    }
-    if let Some(author) = author {
-        params.push(format!("author={}", urlencoding::encode(author)));
-    }
-
-    url.push_str(&params.join("&"));
-
+    let url = format!("https://api.audnex.us/books/{}", asin);
     let response = client
         .get(&url)
         .header("User-Agent", USER_AGENT)
         .send()
         .await
-        .context("Failed to send search request to Audnexus")?;
+        .context("Failed to send request to Audnexus")?;
+
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+
+    if response.status() == reqwest::StatusCode::INTERNAL_SERVER_ERROR {
+        // Audnexus returns 500 when item not in their cache
+        warn!("ASIN {} not available in Audnexus", asin);
+        return Ok(None);
+    }
 
     if !response.status().is_success() {
-        if response.status() == reqwest::StatusCode::NOT_FOUND {
-            return Ok(None);
-        }
-        anyhow::bail!("Audnexus search returned status {}", response.status());
+        warn!("Audnexus ASIN lookup returned status {}", response.status());
+        return Ok(None);
     }
 
-    let results: AudnexusSearchResults = response
+    let book: AudnexusBook = response
         .json()
         .await
-        .context("Failed to parse Audnexus search response")?;
-
-    if let Some(book) = results.into_iter().next() {
-        Ok(Some(audnexus_book_to_result(book)))
-    } else {
-        Ok(None)
-    }
+        .context("Failed to parse Audnexus response")?;
+    Ok(Some(audnexus_book_to_result(book)))
 }
 
 /// Convert Audnexus book response to LookupResult
@@ -237,6 +234,135 @@ fn audnexus_book_to_result(book: AudnexusBook) -> LookupResult {
         isbn: None, // Audnexus doesn't provide ISBN
         asin: book.asin,
     }
+}
+
+/// Fetch metadata from Audible API
+///
+/// Searches by title/author keywords. Returns first result only.
+/// This is the primary source for audiobook metadata including narrator info.
+pub async fn fetch_audible(
+    client: &reqwest::Client,
+    title: Option<&str>,
+    author: Option<&str>,
+) -> Result<Option<LookupResult>> {
+    // Build search keywords
+    let mut keywords = Vec::new();
+    if let Some(title) = title {
+        keywords.push(title.to_string());
+    }
+    if let Some(author) = author {
+        keywords.push(author.to_string());
+    }
+
+    if keywords.is_empty() {
+        return Ok(None);
+    }
+
+    let query = keywords.join(" ");
+    let url = format!(
+        "https://api.audible.com/1.0/catalog/products?response_groups=contributors,product_desc,product_extended_attrs,product_attrs,media&keywords={}&num_results=5&products_sort_by=Relevance",
+        urlencoding::encode(&query)
+    );
+
+    let response = client
+        .get(&url)
+        .header("User-Agent", USER_AGENT)
+        .send()
+        .await
+        .context("Failed to send request to Audible")?;
+
+    if !response.status().is_success() {
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        warn!("Audible search returned status {}", response.status());
+        return Ok(None);
+    }
+
+    let search_response: AudibleSearchResponse = response
+        .json()
+        .await
+        .context("Failed to parse Audible response")?;
+
+    // Take first result only
+    if let Some(product) = search_response.products.into_iter().next() {
+        Ok(Some(audible_product_to_result(product)))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Convert Audible product to LookupResult
+fn audible_product_to_result(product: AudibleProduct) -> LookupResult {
+    // Join authors/narrators with ", "
+    let author = if product.authors.is_empty() {
+        None
+    } else {
+        Some(
+            product
+                .authors
+                .iter()
+                .filter_map(|a| a.name.as_ref())
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", "),
+        )
+    };
+
+    let narrator = if product.narrators.is_empty() {
+        None
+    } else {
+        Some(
+            product
+                .narrators
+                .iter()
+                .filter_map(|n| n.name.as_ref())
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", "),
+        )
+    };
+
+    // Extract year from release_date (format: "YYYY-MM-DD")
+    let year = product
+        .release_date
+        .as_ref()
+        .and_then(|d| d.split('-').next()?.parse().ok());
+
+    // Strip HTML from description
+    let description = product.publisher_summary.map(|s| strip_html_tags(&s));
+
+    LookupResult {
+        source: "audible".to_string(),
+        title: product.title,
+        author,
+        narrator,
+        series: None, // TODO: Parse from title if present
+        series_position: None,
+        year,
+        description,
+        publisher: product.publisher_name,
+        genre: None, // Audible search doesn't return genres
+        isbn: None,
+        asin: product.asin,
+    }
+}
+
+/// Simple HTML tag stripper
+fn strip_html_tags(html: &str) -> String {
+    let mut result = String::new();
+    let mut in_tag = false;
+
+    for c in html.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => result.push(c),
+            _ => {}
+        }
+    }
+
+    result
 }
 
 /// Fetch metadata from Open Library API

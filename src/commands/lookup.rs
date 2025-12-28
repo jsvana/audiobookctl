@@ -2,7 +2,7 @@
 
 use crate::editor::{compute_changes, format_diff, toml_to_metadata};
 use crate::lookup::{
-    fetch_audnexus, fetch_openlibrary, merge_results, FieldValue, LookupResult, MergedMetadata,
+    fetch_audible, fetch_openlibrary, merge_results, FieldValue, LookupResult, MergedMetadata,
 };
 use crate::metadata::{read_metadata, write_metadata, AudiobookMetadata};
 use crate::safety::{create_backup, PendingEditsCache};
@@ -74,21 +74,20 @@ fn query_apis_sync(metadata: &AudiobookMetadata) -> Result<Vec<LookupResult>> {
     rt.block_on(query_apis(metadata))
 }
 
-/// Query both APIs concurrently
+/// Query APIs concurrently
 async fn query_apis(metadata: &AudiobookMetadata) -> Result<Vec<LookupResult>> {
     let client = reqwest::Client::new();
 
     // Extract search parameters from existing metadata
     let title = metadata.title.as_deref();
     let author = metadata.author.as_deref();
-    let asin = metadata.asin.as_deref();
     let isbn = metadata.isbn.as_deref();
 
     // Query both APIs concurrently
-    print!("Querying Audnexus... ");
+    print!("Querying Audible... ");
     io::stdout().flush()?;
 
-    let audnexus_future = fetch_audnexus(&client, title, author, asin);
+    let audible_future = fetch_audible(&client, title, author);
 
     print!("Querying Open Library... ");
     io::stdout().flush()?;
@@ -96,35 +95,43 @@ async fn query_apis(metadata: &AudiobookMetadata) -> Result<Vec<LookupResult>> {
     let openlibrary_future = fetch_openlibrary(&client, title, author, isbn);
 
     // Run both concurrently
-    let (audnexus_result, openlibrary_result) = tokio::join!(audnexus_future, openlibrary_future);
+    let (audible_result, openlibrary_result) = tokio::join!(audible_future, openlibrary_future);
+
+    println!(); // Newline after status messages
 
     let mut results = Vec::new();
 
-    // Handle Audnexus result
-    match audnexus_result {
+    // Handle Audible result
+    match audible_result {
         Ok(Some(result)) => {
-            println!("done");
+            println!(
+                "  Audible: found \"{}\"",
+                result.title.as_deref().unwrap_or("Unknown")
+            );
             results.push(result);
         }
         Ok(None) => {
-            println!("no results");
+            println!("  Audible: no results");
         }
         Err(e) => {
-            eprintln!("warning: Audnexus query failed: {}", e);
+            eprintln!("  Audible: error - {}", e);
         }
     }
 
     // Handle Open Library result
     match openlibrary_result {
         Ok(Some(result)) => {
-            println!("done");
+            println!(
+                "  Open Library: found \"{}\"",
+                result.title.as_deref().unwrap_or("Unknown")
+            );
             results.push(result);
         }
         Ok(None) => {
-            println!("no results");
+            println!("  Open Library: no results");
         }
         Err(e) => {
-            eprintln!("warning: Open Library query failed: {}", e);
+            eprintln!("  Open Library: error - {}", e);
         }
     }
 
