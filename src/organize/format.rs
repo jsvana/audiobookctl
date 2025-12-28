@@ -66,14 +66,25 @@ impl FormatTemplate {
                     bail!("Unclosed placeholder '{{' in format string");
                 }
 
-                // Parse optional padding (e.g., "series_position:02")
-                let (name, padding) = if let Some(colon_pos) = placeholder.find(':') {
-                    let name = placeholder[..colon_pos].to_string();
-                    let pad_str = &placeholder[colon_pos + 1..];
-                    let padding = pad_str.parse::<usize>().ok();
-                    (name, padding)
-                } else {
-                    (placeholder, None)
+                // Parse optional padding (e.g., "series_position:02") and optional marker (?)
+                let (name, padding, optional) = {
+                    let mut work = placeholder.clone();
+
+                    // Check for optional marker at end
+                    let optional = work.ends_with('?');
+                    if optional {
+                        work.pop();
+                    }
+
+                    // Check for padding
+                    if let Some(colon_pos) = work.find(':') {
+                        let name = work[..colon_pos].to_string();
+                        let pad_str = &work[colon_pos + 1..];
+                        let padding = pad_str.parse::<usize>().ok();
+                        (name, padding, optional)
+                    } else {
+                        (work, None, optional)
+                    }
                 };
 
                 // Validate placeholder name
@@ -86,7 +97,11 @@ impl FormatTemplate {
                     );
                 }
 
-                segments.push(Segment::Placeholder { name, padding, optional: false });
+                segments.push(Segment::Placeholder {
+                    name,
+                    padding,
+                    optional,
+                });
             } else {
                 literal.push(c);
             }
@@ -265,5 +280,18 @@ mod tests {
     fn test_sanitize_path_component() {
         assert_eq!(sanitize_path_component("Hello: World"), "Hello_ World");
         assert_eq!(sanitize_path_component("Book/Part 1"), "Book_Part 1");
+    }
+
+    #[test]
+    fn test_parse_optional_placeholder() {
+        let template = FormatTemplate::parse("{author}/{series?}/{title}/{filename}").unwrap();
+        let metadata = AudiobookMetadata {
+            title: Some("Book".to_string()),
+            author: Some("Author".to_string()),
+            series: None,
+            ..Default::default()
+        };
+        // For now just verify it parses - we'll test collapsing in next task
+        assert!(template.generate_path(&metadata, "book.m4b").is_err());
     }
 }
