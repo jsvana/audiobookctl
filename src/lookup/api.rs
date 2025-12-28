@@ -215,15 +215,13 @@ fn audnexus_book_to_result(book: AudnexusBook) -> LookupResult {
     };
 
     // Extract first genre
-    let genre = book
-        .genres
-        .first()
-        .and_then(|g| g.name.clone());
+    let genre = book.genres.first().and_then(|g| g.name.clone());
 
     // Extract year from release_date (format: "YYYY-MM-DD" or similar)
-    let year = book.release_date.as_ref().and_then(|d| {
-        d.split('-').next()?.parse().ok()
-    });
+    let year = book
+        .release_date
+        .as_ref()
+        .and_then(|d| d.split('-').next()?.parse().ok());
 
     LookupResult {
         source: "audnexus".to_string(),

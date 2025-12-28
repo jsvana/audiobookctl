@@ -1,7 +1,9 @@
 //! Lookup command - query APIs for audiobook metadata
 
 use crate::editor::{compute_changes, format_diff, toml_to_metadata};
-use crate::lookup::{fetch_audnexus, fetch_openlibrary, merge_results, FieldValue, LookupResult, MergedMetadata};
+use crate::lookup::{
+    fetch_audnexus, fetch_openlibrary, merge_results, FieldValue, LookupResult, MergedMetadata,
+};
 use crate::metadata::{read_metadata, write_metadata, AudiobookMetadata};
 use crate::safety::{create_backup, PendingEditsCache};
 use anyhow::{bail, Context, Result};
@@ -10,12 +12,7 @@ use std::path::Path;
 use std::process::Command;
 
 /// Main entry point for the lookup command
-pub fn run(
-    file: &Path,
-    no_dry_run: bool,
-    yes: bool,
-    no_backup: bool,
-) -> Result<()> {
+pub fn run(file: &Path, no_dry_run: bool, yes: bool, no_backup: bool) -> Result<()> {
     // Step 1: Read existing metadata from file
     println!("Reading metadata from {}...", file.display());
     let original_metadata = read_metadata(file)?;
@@ -99,8 +96,7 @@ async fn query_apis(metadata: &AudiobookMetadata) -> Result<Vec<LookupResult>> {
     let openlibrary_future = fetch_openlibrary(&client, title, author, isbn);
 
     // Run both concurrently
-    let (audnexus_result, openlibrary_result) =
-        tokio::join!(audnexus_future, openlibrary_future);
+    let (audnexus_result, openlibrary_result) = tokio::join!(audnexus_future, openlibrary_future);
 
     let mut results = Vec::new();
 
@@ -320,7 +316,10 @@ mod tests {
                 selected: "The Martian".to_string(),
                 alternatives: vec![
                     ("audnexus".to_string(), "The Martian".to_string()),
-                    ("openlibrary".to_string(), "The Martian: A Novel".to_string()),
+                    (
+                        "openlibrary".to_string(),
+                        "The Martian: A Novel".to_string(),
+                    ),
                 ],
             },
             author: FieldValue::Agreed("Andy Weir".to_string()),

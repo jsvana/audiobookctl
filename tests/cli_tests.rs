@@ -71,3 +71,23 @@ fn test_edit_commit_all_no_backups() {
         .success()
         .stdout(predicate::str::contains("No backup files found"));
 }
+
+#[test]
+fn test_lookup_help() {
+    let mut cmd = Command::cargo_bin("audiobookctl").unwrap();
+    cmd.args(["lookup", "--help"]);
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Look up metadata"))
+        .stdout(predicate::str::contains("Audnexus"))
+        .stdout(predicate::str::contains("Open Library"))
+        .stdout(predicate::str::contains("--no-dry-run"))
+        .stdout(predicate::str::contains("--no-backup-i-void-my-warranty"));
+}
+
+#[test]
+fn test_lookup_missing_file() {
+    let mut cmd = Command::cargo_bin("audiobookctl").unwrap();
+    cmd.args(["lookup", "/nonexistent/file.m4b"]);
+    cmd.assert().failure();
+}

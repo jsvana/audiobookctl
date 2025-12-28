@@ -161,10 +161,8 @@ pub fn merge_results(existing: &AudiobookMetadata, results: &[LookupResult]) -> 
         .map(|r| (r.source.clone(), r.series_position))
         .collect();
 
-    let year_values: Vec<(String, Option<u32>)> = results
-        .iter()
-        .map(|r| (r.source.clone(), r.year))
-        .collect();
+    let year_values: Vec<(String, Option<u32>)> =
+        results.iter().map(|r| (r.source.clone(), r.year)).collect();
 
     MergedMetadata {
         title: merge_field(&existing.title, &title_values),
@@ -207,7 +205,10 @@ mod tests {
         let existing = Some("The Martian".to_string());
         let results = vec![
             ("audnexus".to_string(), Some("Martian".to_string())),
-            ("openlibrary".to_string(), Some("The Martian: A Novel".to_string())),
+            (
+                "openlibrary".to_string(),
+                Some("The Martian: A Novel".to_string()),
+            ),
         ];
 
         let result = merge_field(&existing, &results);
@@ -242,8 +243,14 @@ mod tests {
             } => {
                 assert_eq!(selected, "2014");
                 assert_eq!(alternatives.len(), 2);
-                assert_eq!(alternatives[0], ("audnexus".to_string(), "2014".to_string()));
-                assert_eq!(alternatives[1], ("openlibrary".to_string(), "2011".to_string()));
+                assert_eq!(
+                    alternatives[0],
+                    ("audnexus".to_string(), "2014".to_string())
+                );
+                assert_eq!(
+                    alternatives[1],
+                    ("openlibrary".to_string(), "2011".to_string())
+                );
             }
             _ => panic!("Expected Conflicting, got {:?}", result),
         }
