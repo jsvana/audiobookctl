@@ -32,6 +32,7 @@ enum Segment {
     Placeholder {
         name: String,
         padding: Option<usize>,
+        optional: bool,
     },
 }
 
@@ -85,7 +86,7 @@ impl FormatTemplate {
                     );
                 }
 
-                segments.push(Segment::Placeholder { name, padding });
+                segments.push(Segment::Placeholder { name, padding, optional: false });
             } else {
                 literal.push(c);
             }
@@ -128,7 +129,7 @@ impl FormatTemplate {
                         current_part.push_str(s);
                     }
                 }
-                Segment::Placeholder { name, padding } => {
+                Segment::Placeholder { name, padding, .. } => {
                     let value = self.get_field_value(metadata, name, original_filename);
                     match value {
                         Some(v) => {
