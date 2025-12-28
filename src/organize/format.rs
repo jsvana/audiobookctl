@@ -299,4 +299,17 @@ mod tests {
         let path = template.generate_path(&metadata, "book.m4b").unwrap();
         assert_eq!(path, PathBuf::from("Author/Book/book.m4b"));
     }
+
+    #[test]
+    fn test_optional_placeholder_present() {
+        let template = FormatTemplate::parse("{author}/{series?}/{title}/{filename}").unwrap();
+        let metadata = AudiobookMetadata {
+            title: Some("Book".to_string()),
+            author: Some("Author".to_string()),
+            series: Some("Series".to_string()),
+            ..Default::default()
+        };
+        let path = template.generate_path(&metadata, "book.m4b").unwrap();
+        assert_eq!(path, PathBuf::from("Author/Series/Book/book.m4b"));
+    }
 }
