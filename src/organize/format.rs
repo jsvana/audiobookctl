@@ -2,7 +2,14 @@ use crate::metadata::AudiobookMetadata;
 use anyhow::{bail, Result};
 use std::path::PathBuf;
 
-/// Available format placeholders with descriptions
+/// Available format placeholders with descriptions.
+///
+/// Use `{field}` for required placeholders (path generation fails if missing).
+/// Use `{field?}` for optional placeholders (path collapses if missing).
+///
+/// Example: `{author}/{series?}/{title}/{filename}`
+/// - With series: `Author/Series/Title/file.m4b`
+/// - Without series: `Author/Title/file.m4b`
 pub const PLACEHOLDERS: &[(&str, &str)] = &[
     ("author", "Author name"),
     ("title", "Book title"),
@@ -32,6 +39,7 @@ enum Segment {
     Placeholder {
         name: String,
         padding: Option<usize>,
+        optional: bool,
     },
 }
 
@@ -65,14 +73,30 @@ impl FormatTemplate {
                     bail!("Unclosed placeholder '{{' in format string");
                 }
 
-                // Parse optional padding (e.g., "series_position:02")
-                let (name, padding) = if let Some(colon_pos) = placeholder.find(':') {
-                    let name = placeholder[..colon_pos].to_string();
-                    let pad_str = &placeholder[colon_pos + 1..];
-                    let padding = pad_str.parse::<usize>().ok();
-                    (name, padding)
-                } else {
-                    (placeholder, None)
+                // Parse optional padding (e.g., "series_position:02") and optional marker (?)
+                // Supports both {field?} and {field?:02} syntax
+                let (name, padding, optional) = {
+                    let work = placeholder.clone();
+
+                    // Check for optional marker - can be at end ({field?}) or before colon ({field?:02})
+                    let (base, optional) = if let Some(q_pos) = work.find('?') {
+                        // Remove the ? from the string
+                        let mut s = work.clone();
+                        s.remove(q_pos);
+                        (s, true)
+                    } else {
+                        (work, false)
+                    };
+
+                    // Check for padding
+                    if let Some(colon_pos) = base.find(':') {
+                        let name = base[..colon_pos].to_string();
+                        let pad_str = &base[colon_pos + 1..];
+                        let padding = pad_str.parse::<usize>().ok();
+                        (name, padding, optional)
+                    } else {
+                        (base, None, optional)
+                    }
                 };
 
                 // Validate placeholder name
@@ -85,7 +109,11 @@ impl FormatTemplate {
                     );
                 }
 
-                segments.push(Segment::Placeholder { name, padding });
+                segments.push(Segment::Placeholder {
+                    name,
+                    padding,
+                    optional,
+                });
             } else {
                 literal.push(c);
             }
@@ -128,7 +156,11 @@ impl FormatTemplate {
                         current_part.push_str(s);
                     }
                 }
-                Segment::Placeholder { name, padding } => {
+                Segment::Placeholder {
+                    name,
+                    padding,
+                    optional,
+                } => {
                     let value = self.get_field_value(metadata, name, original_filename);
                     match value {
                         Some(v) => {
@@ -140,6 +172,11 @@ impl FormatTemplate {
                             // Sanitize for filesystem
                             let sanitized = sanitize_path_component(&formatted);
                             current_part.push_str(&sanitized);
+                        }
+                        None if *optional => {
+                            // Optional placeholder missing - mark current part as empty
+                            // so it gets filtered out
+                            // Don't add to missing list
                         }
                         None => {
                             if name != "filename" {
@@ -264,5 +301,74 @@ mod tests {
     fn test_sanitize_path_component() {
         assert_eq!(sanitize_path_component("Hello: World"), "Hello_ World");
         assert_eq!(sanitize_path_component("Book/Part 1"), "Book_Part 1");
+    }
+
+    #[test]
+    fn test_optional_placeholder_collapses() {
+        let template = FormatTemplate::parse("{author}/{series?}/{title}/{filename}").unwrap();
+        let metadata = AudiobookMetadata {
+            title: Some("Book".to_string()),
+            author: Some("Author".to_string()),
+            series: None,
+            ..Default::default()
+        };
+        let path = template.generate_path(&metadata, "book.m4b").unwrap();
+        assert_eq!(path, PathBuf::from("Author/Book/book.m4b"));
+    }
+
+    #[test]
+    fn test_optional_placeholder_present() {
+        let template = FormatTemplate::parse("{author}/{series?}/{title}/{filename}").unwrap();
+        let metadata = AudiobookMetadata {
+            title: Some("Book".to_string()),
+            author: Some("Author".to_string()),
+            series: Some("Series".to_string()),
+            ..Default::default()
+        };
+        let path = template.generate_path(&metadata, "book.m4b").unwrap();
+        assert_eq!(path, PathBuf::from("Author/Series/Book/book.m4b"));
+    }
+
+    #[test]
+    fn test_optional_placeholder_with_padding() {
+        let template =
+            FormatTemplate::parse("{author}/{series?}/{series_position?:02}/{title}/{filename}")
+                .unwrap();
+
+        // With both present
+        let metadata_full = AudiobookMetadata {
+            title: Some("Book".to_string()),
+            author: Some("Author".to_string()),
+            series: Some("Series".to_string()),
+            series_position: Some(3),
+            ..Default::default()
+        };
+        let path = template.generate_path(&metadata_full, "book.m4b").unwrap();
+        assert_eq!(path, PathBuf::from("Author/Series/03/Book/book.m4b"));
+
+        // With both missing
+        let metadata_none = AudiobookMetadata {
+            title: Some("Book".to_string()),
+            author: Some("Author".to_string()),
+            series: None,
+            series_position: None,
+            ..Default::default()
+        };
+        let path = template.generate_path(&metadata_none, "book.m4b").unwrap();
+        assert_eq!(path, PathBuf::from("Author/Book/book.m4b"));
+    }
+
+    #[test]
+    fn test_required_placeholder_still_fails() {
+        let template = FormatTemplate::parse("{author}/{series?}/{title}/{filename}").unwrap();
+        let metadata = AudiobookMetadata {
+            title: Some("Book".to_string()),
+            author: None, // Required field missing
+            series: None,
+            ..Default::default()
+        };
+        let result = template.generate_path(&metadata, "book.m4b");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), vec!["author"]);
     }
 }
