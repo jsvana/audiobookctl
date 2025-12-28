@@ -344,4 +344,18 @@ mod tests {
         let path = template.generate_path(&metadata_none, "book.m4b").unwrap();
         assert_eq!(path, PathBuf::from("Author/Book/book.m4b"));
     }
+
+    #[test]
+    fn test_required_placeholder_still_fails() {
+        let template = FormatTemplate::parse("{author}/{series?}/{title}/{filename}").unwrap();
+        let metadata = AudiobookMetadata {
+            title: Some("Book".to_string()),
+            author: None,  // Required field missing
+            series: None,
+            ..Default::default()
+        };
+        let result = template.generate_path(&metadata, "book.m4b");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), vec!["author"]);
+    }
 }
