@@ -3,6 +3,8 @@
 
 mod fields;
 mod reader;
+mod writer;
 
 pub use fields::AudiobookMetadata;
 pub use reader::read_metadata;
+pub use writer::write_metadata;
