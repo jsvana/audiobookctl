@@ -7,12 +7,13 @@ use walkdir::WalkDir;
 pub fn create_backup(file_path: &Path) -> Result<PathBuf> {
     let backup_path = backup_path_for(file_path);
 
-    fs::copy(file_path, &backup_path)
-        .with_context(|| format!(
+    fs::copy(file_path, &backup_path).with_context(|| {
+        format!(
             "Failed to create backup: {} -> {}",
             file_path.display(),
             backup_path.display()
-        ))?;
+        )
+    })?;
 
     Ok(backup_path)
 }

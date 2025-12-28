@@ -24,15 +24,17 @@ impl PendingEditsCache {
             .join("audiobookctl")
             .join("pending");
 
-        fs::create_dir_all(&cache_dir)
-            .with_context(|| format!("Failed to create cache directory: {}", cache_dir.display()))?;
+        fs::create_dir_all(&cache_dir).with_context(|| {
+            format!("Failed to create cache directory: {}", cache_dir.display())
+        })?;
 
         Ok(Self { cache_dir })
     }
 
     /// Get the cache file path for a given m4b file
     pub fn cache_path_for(&self, file_path: &Path) -> Result<PathBuf> {
-        let abs_path = file_path.canonicalize()
+        let abs_path = file_path
+            .canonicalize()
             .with_context(|| format!("Failed to get absolute path for: {}", file_path.display()))?;
 
         let hash = Self::hash_path(&abs_path);
@@ -119,8 +121,9 @@ impl PendingEditsCache {
         let cache_path = self.cache_path_for(file_path)?;
 
         if cache_path.exists() {
-            fs::remove_file(&cache_path)
-                .with_context(|| format!("Failed to remove pending edit: {}", cache_path.display()))?;
+            fs::remove_file(&cache_path).with_context(|| {
+                format!("Failed to remove pending edit: {}", cache_path.display())
+            })?;
             Ok(true)
         } else {
             Ok(false)

@@ -44,7 +44,10 @@ pub fn metadata_to_toml(metadata: &AudiobookMetadata) -> String {
         let hours = duration / 3600;
         let minutes = (duration % 3600) / 60;
         let seconds = duration % 60;
-        lines.push(format!("# duration = \"{:02}:{:02}:{:02}\"", hours, minutes, seconds));
+        lines.push(format!(
+            "# duration = \"{:02}:{:02}:{:02}\"",
+            hours, minutes, seconds
+        ));
     } else {
         lines.push("# duration = \"\"".to_string());
     }
@@ -76,14 +79,19 @@ pub fn toml_to_metadata(toml_str: &str) -> Result<AudiobookMetadata> {
 
     // Parse into a toml::Value first
     let value: toml::Value = toml::from_str(&filtered)?;
-    let table = value.as_table().ok_or_else(|| anyhow::anyhow!("Invalid TOML structure"))?;
+    let table = value
+        .as_table()
+        .ok_or_else(|| anyhow::anyhow!("Invalid TOML structure"))?;
 
     fn get_string(table: &toml::map::Map<String, toml::Value>, key: &str) -> Option<String> {
         table.get(key).and_then(|v| v.as_str()).map(String::from)
     }
 
     fn get_u32(table: &toml::map::Map<String, toml::Value>, key: &str) -> Option<u32> {
-        table.get(key).and_then(|v| v.as_integer()).map(|n| n as u32)
+        table
+            .get(key)
+            .and_then(|v| v.as_integer())
+            .map(|n| n as u32)
     }
 
     Ok(AudiobookMetadata {

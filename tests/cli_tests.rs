@@ -51,8 +51,7 @@ fn test_edit_help() {
 fn test_edit_missing_file() {
     let mut cmd = Command::cargo_bin("audiobookctl").unwrap();
     cmd.args(["edit", "/nonexistent/file.m4b"]);
-    cmd.assert()
-        .failure();
+    cmd.assert().failure();
 }
 
 #[test]

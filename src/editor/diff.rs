@@ -13,19 +13,37 @@ pub struct FieldChange {
 pub fn compute_changes(old: &AudiobookMetadata, new: &AudiobookMetadata) -> Vec<FieldChange> {
     let mut changes = Vec::new();
 
-    fn check_string(changes: &mut Vec<FieldChange>, field: &str, old: &Option<String>, new: &Option<String>) {
+    fn check_string(
+        changes: &mut Vec<FieldChange>,
+        field: &str,
+        old: &Option<String>,
+        new: &Option<String>,
+    ) {
         let old_val = old.as_deref().unwrap_or("");
         let new_val = new.as_deref().unwrap_or("");
         if old_val != new_val {
             changes.push(FieldChange {
                 field: field.to_string(),
-                old_value: if old_val.is_empty() { "(empty)".to_string() } else { old_val.to_string() },
-                new_value: if new_val.is_empty() { "(empty)".to_string() } else { new_val.to_string() },
+                old_value: if old_val.is_empty() {
+                    "(empty)".to_string()
+                } else {
+                    old_val.to_string()
+                },
+                new_value: if new_val.is_empty() {
+                    "(empty)".to_string()
+                } else {
+                    new_val.to_string()
+                },
             });
         }
     }
 
-    fn check_u32(changes: &mut Vec<FieldChange>, field: &str, old: &Option<u32>, new: &Option<u32>) {
+    fn check_u32(
+        changes: &mut Vec<FieldChange>,
+        field: &str,
+        old: &Option<u32>,
+        new: &Option<u32>,
+    ) {
         if old != new {
             changes.push(FieldChange {
                 field: field.to_string(),
@@ -39,9 +57,19 @@ pub fn compute_changes(old: &AudiobookMetadata, new: &AudiobookMetadata) -> Vec<
     check_string(&mut changes, "author", &old.author, &new.author);
     check_string(&mut changes, "narrator", &old.narrator, &new.narrator);
     check_string(&mut changes, "series", &old.series, &new.series);
-    check_u32(&mut changes, "series_position", &old.series_position, &new.series_position);
+    check_u32(
+        &mut changes,
+        "series_position",
+        &old.series_position,
+        &new.series_position,
+    );
     check_u32(&mut changes, "year", &old.year, &new.year);
-    check_string(&mut changes, "description", &old.description, &new.description);
+    check_string(
+        &mut changes,
+        "description",
+        &old.description,
+        &new.description,
+    );
     check_string(&mut changes, "publisher", &old.publisher, &new.publisher);
     check_string(&mut changes, "genre", &old.genre, &new.genre);
     check_string(&mut changes, "isbn", &old.isbn, &new.isbn);
@@ -62,7 +90,12 @@ pub fn format_diff(file_path: &str, changes: &[FieldChange]) -> String {
     writeln!(output).unwrap();
 
     // Calculate column widths
-    let field_width = changes.iter().map(|c| c.field.len()).max().unwrap_or(10).max(10);
+    let field_width = changes
+        .iter()
+        .map(|c| c.field.len())
+        .max()
+        .unwrap_or(10)
+        .max(10);
     let value_width = 24;
 
     // Header
@@ -74,7 +107,8 @@ pub fn format_diff(file_path: &str, changes: &[FieldChange]) -> String {
         "New",
         width = field_width,
         vw = value_width
-    ).unwrap();
+    )
+    .unwrap();
 
     // Separator
     writeln!(
@@ -85,7 +119,8 @@ pub fn format_diff(file_path: &str, changes: &[FieldChange]) -> String {
         "",
         width = field_width + 1,
         vw = value_width
-    ).unwrap();
+    )
+    .unwrap();
 
     // Changes
     for change in changes {
@@ -100,7 +135,8 @@ pub fn format_diff(file_path: &str, changes: &[FieldChange]) -> String {
             new_display,
             width = field_width,
             vw = value_width
-        ).unwrap();
+        )
+        .unwrap();
     }
 
     output
@@ -165,13 +201,11 @@ mod tests {
 
     #[test]
     fn test_format_diff_with_changes() {
-        let changes = vec![
-            FieldChange {
-                field: "title".to_string(),
-                old_value: "Old".to_string(),
-                new_value: "New".to_string(),
-            },
-        ];
+        let changes = vec![FieldChange {
+            field: "title".to_string(),
+            old_value: "Old".to_string(),
+            new_value: "New".to_string(),
+        }];
 
         let output = format_diff("book.m4b", &changes);
         assert!(output.contains("Changes to book.m4b:"));
