@@ -10,10 +10,12 @@ pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
     Ok(AudiobookMetadata {
         title: tag.title().map(String::from),
         author: tag.artist().map(String::from),
-        narrator: tag.take_strings_of(&mp4ameta::FreeformIdent::new(
-            "com.apple.iTunes",
-            "NARRATOR",
-        )).next(),
+        narrator: tag
+            .take_strings_of(&mp4ameta::FreeformIdent::new(
+                "com.apple.iTunes",
+                "NARRATOR",
+            ))
+            .next(),
         series: tag.tv_show_name().map(String::from),
         series_position: tag.tv_episode(),
         year: tag.year().and_then(|s| s.parse().ok()),
@@ -22,14 +24,12 @@ pub fn read_metadata(path: &Path) -> Result<AudiobookMetadata> {
         genre: tag.genre().map(String::from),
         duration_seconds: tag.duration().map(|d| d.as_secs()),
         chapter_count: None, // Would need separate chapter parsing
-        isbn: tag.take_strings_of(&mp4ameta::FreeformIdent::new(
-            "com.apple.iTunes",
-            "ISBN",
-        )).next(),
-        asin: tag.take_strings_of(&mp4ameta::FreeformIdent::new(
-            "com.apple.iTunes",
-            "ASIN",
-        )).next(),
+        isbn: tag
+            .take_strings_of(&mp4ameta::FreeformIdent::new("com.apple.iTunes", "ISBN"))
+            .next(),
+        asin: tag
+            .take_strings_of(&mp4ameta::FreeformIdent::new("com.apple.iTunes", "ASIN"))
+            .next(),
         cover_info: tag.artwork().map(|art| {
             let fmt = match art.fmt {
                 mp4ameta::ImgFmt::Jpeg => "JPEG",
