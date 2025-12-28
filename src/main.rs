@@ -1,5 +1,6 @@
 mod cli;
 mod commands;
+mod editor;
 mod metadata;
 mod safety;
 
