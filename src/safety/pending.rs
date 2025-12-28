@@ -135,7 +135,7 @@ impl PendingEditsCache {
             for entry in fs::read_dir(&self.cache_dir)? {
                 let entry = entry?;
                 let path = entry.path();
-                if path.extension().map_or(false, |e| e == "toml") {
+                if path.extension().is_some_and(|e| e == "toml") {
                     fs::remove_file(&path)?;
                     count += 1;
                 }
