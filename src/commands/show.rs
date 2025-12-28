@@ -99,7 +99,10 @@ fn print_pretty(metadata: &AudiobookMetadata, path: &Path, quiet: bool) -> Resul
         let hours = duration / 3600;
         let minutes = (duration % 3600) / 60;
         let seconds = duration % 60;
-        print_field("Duration", Some(&format!("{:02}:{:02}:{:02}", hours, minutes, seconds)));
+        print_field(
+            "Duration",
+            Some(&format!("{:02}:{:02}:{:02}", hours, minutes, seconds)),
+        );
     }
 
     if let Some(chapters) = metadata.chapter_count {
