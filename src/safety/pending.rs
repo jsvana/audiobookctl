@@ -147,6 +147,57 @@ impl PendingEditsCache {
 
         Ok(count)
     }
+
+    /// List all pending edits
+    pub fn list_all(&self) -> Result<Vec<PendingEdit>> {
+        let mut edits = Vec::new();
+
+        if !self.cache_dir.exists() {
+            return Ok(edits);
+        }
+
+        for entry in fs::read_dir(&self.cache_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "toml") {
+                // Read the file to get the original path from header
+                let content = fs::read_to_string(&path)?;
+
+                let mut original_path = PathBuf::new();
+                let mut created_at = chrono::Utc::now();
+                let mut toml_start = 0;
+
+                for (i, line) in content.lines().enumerate() {
+                    if line.starts_with("# Pending edit for: ") {
+                        let path_str = line.trim_start_matches("# Pending edit for: ");
+                        original_path = PathBuf::from(path_str);
+                    } else if line.starts_with("# Created: ") {
+                        let ts_str = line.trim_start_matches("# Created: ");
+                        if let Ok(ts) = chrono::DateTime::parse_from_rfc3339(ts_str) {
+                            created_at = ts.with_timezone(&chrono::Utc);
+                        }
+                    } else if !line.starts_with('#') && !line.is_empty() {
+                        toml_start = content.lines().take(i).map(|l| l.len() + 1).sum();
+                        break;
+                    }
+                }
+
+                if !original_path.as_os_str().is_empty() {
+                    let toml_content = content[toml_start..].to_string();
+                    edits.push(PendingEdit {
+                        original_path,
+                        toml_content,
+                        created_at,
+                    });
+                }
+            }
+        }
+
+        // Sort by created_at (oldest first)
+        edits.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+
+        Ok(edits)
+    }
 }
 
 #[cfg(test)]
