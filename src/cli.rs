@@ -51,10 +51,6 @@ pub enum Commands {
         #[arg(long = "no-backup-i-void-my-warranty")]
         no_backup: bool,
 
-        /// Clear pending edit(s)
-        #[arg(long)]
-        clear: bool,
-
         /// Delete backup after verifying changes
         #[arg(long)]
         commit: bool,
@@ -161,6 +157,12 @@ pub enum Commands {
         #[command(subcommand)]
         action: BackupsAction,
     },
+
+    /// Manage pending edits
+    Pending {
+        #[command(subcommand)]
+        action: PendingAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -184,5 +186,38 @@ pub enum BackupsAction {
         /// Skip confirmation prompt (with --all)
         #[arg(long)]
         yes: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum PendingAction {
+    /// List all pending edits
+    List {
+        /// Show diff preview for each pending edit
+        #[arg(long)]
+        diff: bool,
+    },
+    /// Show diff for a specific pending edit
+    Show {
+        /// Path to the m4b file
+        file: PathBuf,
+    },
+    /// Apply pending edits
+    Apply {
+        /// Path to specific m4b file (applies all if not specified)
+        file: Option<PathBuf>,
+
+        /// Skip confirmation prompt
+        #[arg(long)]
+        yes: bool,
+
+        /// Skip creating backup files
+        #[arg(long = "no-backup-i-void-my-warranty")]
+        no_backup: bool,
+    },
+    /// Clear pending edits
+    Clear {
+        /// Path to specific m4b file (clears all if not specified)
+        file: Option<PathBuf>,
     },
 }
