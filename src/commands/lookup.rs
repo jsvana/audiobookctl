@@ -11,24 +11,76 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::Command;
 
-/// Main entry point for the lookup command
-pub fn run(file: &Path, no_dry_run: bool, yes: bool, no_backup: bool) -> Result<()> {
-    // Step 1: Read existing metadata from file
-    println!("Reading metadata from {}...", file.display());
+/// Query APIs and merge with existing metadata
+pub fn query_and_merge(file: &Path) -> Result<(AudiobookMetadata, MergedMetadata, Vec<String>)> {
     let original_metadata = read_metadata(file)?;
-
-    // Step 2-4: Query APIs concurrently
     let results = query_apis_sync(&original_metadata)?;
 
     if results.is_empty() {
-        println!("No results found from any API.");
-        return Ok(());
+        anyhow::bail!("No results found from any API");
     }
 
-    // Step 5: Merge results
+    let sources: Vec<String> = results.iter().map(|r| r.source.clone()).collect();
     let merged = merge_results(&original_metadata, &results);
 
-    // Check for early exit if no changes
+    Ok((original_metadata, merged, sources))
+}
+
+/// Process a single file lookup (shared by lookup and lookup-all)
+pub fn process_lookup(
+    file: &Path,
+    original: &AudiobookMetadata,
+    merged: &MergedMetadata,
+    no_dry_run: bool,
+    yes: bool,
+    no_backup: bool,
+) -> Result<bool> {
+    // Generate TOML
+    let toml_content = merged_to_toml(merged);
+
+    // Open in editor
+    println!("Opening editor...");
+    let edited_toml = open_in_editor(&toml_content)?;
+
+    // Parse edited TOML
+    let new_metadata = toml_to_metadata(&edited_toml).context("Failed to parse edited TOML")?;
+
+    // Compute diff
+    let changes = compute_changes(original, &new_metadata);
+
+    // Display diff
+    let diff_output = format_diff(&file.display().to_string(), &changes);
+    println!("{}", diff_output);
+
+    if changes.is_empty() {
+        println!("No changes to apply.");
+        return Ok(false);
+    }
+
+    // Apply changes
+    if no_dry_run {
+        apply_changes(file, &new_metadata, yes, no_backup)?;
+        Ok(true)
+    } else {
+        let cache = PendingEditsCache::new()?;
+        let _cache_path = cache.save(file, &edited_toml)?;
+        println!();
+        println!("Changes saved to pending cache.");
+        println!(
+            "To apply: audiobookctl edit \"{}\" --no-dry-run",
+            file.display()
+        );
+        Ok(false)
+    }
+}
+
+/// Main entry point for the lookup command
+pub fn run(file: &Path, no_dry_run: bool, yes: bool, no_backup: bool) -> Result<()> {
+    println!("Reading metadata from {}...", file.display());
+
+    let (original, merged, _sources) = query_and_merge(file)?;
+
+    // Check for early exit
     if let Some(sources) = merged.matches_file() {
         println!(
             "{}: metadata matches [{}] - skipping",
@@ -38,42 +90,7 @@ pub fn run(file: &Path, no_dry_run: bool, yes: bool, no_backup: bool) -> Result<
         return Ok(());
     }
 
-    // Step 6: Generate TOML
-    let toml_content = merged_to_toml(&merged);
-
-    // Step 7: Open in editor
-    println!("Opening editor...");
-    let edited_toml = open_in_editor(&toml_content)?;
-
-    // Step 8: Parse edited TOML
-    let new_metadata = toml_to_metadata(&edited_toml).context("Failed to parse edited TOML")?;
-
-    // Step 9: Compute diff
-    let changes = compute_changes(&original_metadata, &new_metadata);
-
-    // Step 10: Display diff
-    let diff_output = format_diff(&file.display().to_string(), &changes);
-    println!("{}", diff_output);
-
-    if changes.is_empty() {
-        println!("No changes to apply.");
-        return Ok(());
-    }
-
-    // Step 11: Apply changes (respecting dry-run, backup, confirmation)
-    if no_dry_run {
-        apply_changes(file, &new_metadata, yes, no_backup)?;
-    } else {
-        // Save to pending cache for later application
-        let cache = PendingEditsCache::new()?;
-        let _cache_path = cache.save(file, &edited_toml)?;
-        println!();
-        println!("Changes saved to pending cache.");
-        println!(
-            "To apply: audiobookctl edit \"{}\" --no-dry-run",
-            file.display()
-        );
-    }
+    process_lookup(file, &original, &merged, no_dry_run, yes, no_backup)?;
 
     Ok(())
 }
