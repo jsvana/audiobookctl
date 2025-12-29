@@ -28,6 +28,16 @@ pub fn run(file: &Path, no_dry_run: bool, yes: bool, no_backup: bool) -> Result<
     // Step 5: Merge results
     let merged = merge_results(&original_metadata, &results);
 
+    // Check for early exit if no changes
+    if let Some(sources) = merged.matches_file() {
+        println!(
+            "{}: metadata matches [{}] - skipping",
+            file.display(),
+            sources.join(", ")
+        );
+        return Ok(());
+    }
+
     // Step 6: Generate TOML
     let toml_content = merged_to_toml(&merged);
 

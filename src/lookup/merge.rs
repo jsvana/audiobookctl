@@ -33,6 +33,58 @@ pub struct MergedMetadata {
     pub asin: FieldValue,
 }
 
+impl MergedMetadata {
+    /// Check if all fields either match the file or are empty
+    /// Returns the sources that were checked if no changes needed
+    pub fn matches_file(&self) -> Option<Vec<String>> {
+        let fields = [
+            &self.title,
+            &self.author,
+            &self.narrator,
+            &self.series,
+            &self.series_position,
+            &self.year,
+            &self.description,
+            &self.publisher,
+            &self.genre,
+            &self.isbn,
+            &self.asin,
+        ];
+
+        let mut all_sources: Vec<String> = Vec::new();
+
+        for field in fields {
+            match field {
+                FieldValue::Agreed { sources, .. } => {
+                    // Only consider it a match if file is one of the agreeing sources
+                    // If file is NOT in sources, it means the file had no value but API provided one
+                    if !sources.contains(&"file".to_string()) {
+                        return None; // File would gain new data
+                    }
+                    for s in sources {
+                        if s != "file" && !all_sources.contains(s) {
+                            all_sources.push(s.clone());
+                        }
+                    }
+                }
+                FieldValue::Conflicting { .. } => {
+                    // Any conflict means changes available
+                    return None;
+                }
+                FieldValue::Empty => {
+                    // Empty is fine
+                }
+            }
+        }
+
+        if all_sources.is_empty() {
+            None // No sources checked
+        } else {
+            Some(all_sources)
+        }
+    }
+}
+
 /// Merge a single string field from multiple sources
 ///
 /// Existing metadata is treated as a source ("file") and included in conflict detection.
@@ -571,5 +623,78 @@ mod tests {
             }
             _ => panic!("Expected asin to be Agreed"),
         }
+    }
+
+    #[test]
+    fn test_matches_file_all_agree() {
+        let merged = MergedMetadata {
+            title: FieldValue::Agreed {
+                value: "Book".to_string(),
+                sources: vec!["file".to_string(), "audible".to_string()],
+            },
+            author: FieldValue::Empty,
+            narrator: FieldValue::Empty,
+            series: FieldValue::Empty,
+            series_position: FieldValue::Empty,
+            year: FieldValue::Empty,
+            description: FieldValue::Empty,
+            publisher: FieldValue::Empty,
+            genre: FieldValue::Empty,
+            isbn: FieldValue::Empty,
+            asin: FieldValue::Empty,
+        };
+
+        let result = merged.matches_file();
+        assert_eq!(result, Some(vec!["audible".to_string()]));
+    }
+
+    #[test]
+    fn test_matches_file_api_provides_new_value() {
+        // When file has empty field but API provides value, should NOT skip
+        // This is the case where sources is ["audible"] without "file"
+        let merged = MergedMetadata {
+            title: FieldValue::Agreed {
+                value: "Book".to_string(),
+                sources: vec!["audible".to_string()], // No "file" - API provides new data
+            },
+            author: FieldValue::Empty,
+            narrator: FieldValue::Empty,
+            series: FieldValue::Empty,
+            series_position: FieldValue::Empty,
+            year: FieldValue::Empty,
+            description: FieldValue::Empty,
+            publisher: FieldValue::Empty,
+            genre: FieldValue::Empty,
+            isbn: FieldValue::Empty,
+            asin: FieldValue::Empty,
+        };
+
+        // Should return None because the file would gain new data
+        assert_eq!(merged.matches_file(), None);
+    }
+
+    #[test]
+    fn test_matches_file_has_conflicts() {
+        let merged = MergedMetadata {
+            title: FieldValue::Conflicting {
+                selected: "Book".to_string(),
+                alternatives: vec![
+                    (vec!["file".to_string()], "Book".to_string()),
+                    (vec!["audible".to_string()], "Other".to_string()),
+                ],
+            },
+            author: FieldValue::Empty,
+            narrator: FieldValue::Empty,
+            series: FieldValue::Empty,
+            series_position: FieldValue::Empty,
+            year: FieldValue::Empty,
+            description: FieldValue::Empty,
+            publisher: FieldValue::Empty,
+            genre: FieldValue::Empty,
+            isbn: FieldValue::Empty,
+            asin: FieldValue::Empty,
+        };
+
+        assert_eq!(merged.matches_file(), None);
     }
 }
