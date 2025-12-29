@@ -75,6 +75,17 @@ fn main() -> Result<()> {
         Commands::Init { force } => {
             commands::init::run(force)?;
         }
+        Commands::Backups { action } => {
+            use cli::BackupsAction;
+            match action {
+                BackupsAction::List { dir } => {
+                    commands::backups::list(&dir)?;
+                }
+                BackupsAction::Clean { dir, all, yes } => {
+                    commands::backups::clean(&dir, all, yes)?;
+                }
+            }
+        }
     }
 
     Ok(())

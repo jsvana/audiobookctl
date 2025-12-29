@@ -133,4 +133,34 @@ pub enum Commands {
         #[arg(long)]
         force: bool,
     },
+
+    /// Manage backup files
+    Backups {
+        #[command(subcommand)]
+        action: BackupsAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum BackupsAction {
+    /// List all backup files and total size
+    List {
+        /// Directory to scan (current directory if not specified)
+        #[arg(default_value = ".")]
+        dir: std::path::PathBuf,
+    },
+    /// Clean backup files
+    Clean {
+        /// Directory to scan (current directory if not specified)
+        #[arg(default_value = ".")]
+        dir: std::path::PathBuf,
+
+        /// Delete all backups without prompting for each
+        #[arg(long)]
+        all: bool,
+
+        /// Skip confirmation prompt (with --all)
+        #[arg(long)]
+        yes: bool,
+    },
 }

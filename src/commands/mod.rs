@@ -1,3 +1,4 @@
+pub mod backups;
 pub mod edit;
 pub mod fields;
 pub mod fix;
