@@ -7,6 +7,8 @@ use std::path::PathBuf;
 pub struct Config {
     #[serde(default)]
     pub organize: OrganizeConfig,
+    #[serde(default)]
+    pub backups: BackupsConfig,
 }
 
 /// Configuration for the organize and fix commands
@@ -18,6 +20,26 @@ pub struct OrganizeConfig {
 
     /// Default destination directory for organized audiobooks
     pub dest: Option<PathBuf>,
+}
+
+/// Configuration for backup management
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupsConfig {
+    /// Maximum storage allowed for backups in bytes (default: 2GB)
+    #[serde(default = "default_max_storage")]
+    pub max_storage_bytes: u64,
+}
+
+fn default_max_storage() -> u64 {
+    2 * 1024 * 1024 * 1024 // 2GB
+}
+
+impl Default for BackupsConfig {
+    fn default() -> Self {
+        Self {
+            max_storage_bytes: default_max_storage(),
+        }
+    }
 }
 
 impl Config {
@@ -104,6 +126,7 @@ dest = "/home/user/audiobooks"
                 format: Some("{author}/{title}".to_string()),
                 dest: Some(PathBuf::from("/default/path")),
             },
+            backups: BackupsConfig::default(),
         };
 
         // CLI override takes precedence
@@ -119,5 +142,28 @@ dest = "/home/user/audiobooks"
         // Falls back to config when no CLI override
         assert_eq!(config.format(None), Some("{author}/{title}".to_string()));
         assert_eq!(config.dest(None), Some(PathBuf::from("/default/path")));
+    }
+
+    #[test]
+    fn test_backups_config_defaults() {
+        let config = Config::default();
+        assert_eq!(config.backups.max_storage_bytes, 2 * 1024 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_load_with_backups_config() {
+        let temp = TempDir::new().unwrap();
+        let path = temp.path().join("config.toml");
+        std::fs::write(
+            &path,
+            r#"
+[backups]
+max_storage_bytes = 1073741824
+"#,
+        )
+        .unwrap();
+
+        let config = Config::load_from(&path).unwrap();
+        assert_eq!(config.backups.max_storage_bytes, 1024 * 1024 * 1024); // 1GB
     }
 }
