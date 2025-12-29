@@ -95,6 +95,23 @@ fn main() -> Result<()> {
                 }
             }
         }
+        Commands::Pending { action } => {
+            use cli::PendingAction;
+            match action {
+                PendingAction::List { diff } => {
+                    commands::pending::list(diff)?;
+                }
+                PendingAction::Show { file } => {
+                    commands::pending::show(&file)?;
+                }
+                PendingAction::Apply { file, yes, no_backup } => {
+                    commands::pending::apply(file.as_deref(), yes, no_backup)?;
+                }
+                PendingAction::Clear { file } => {
+                    commands::pending::clear(file.as_deref())?;
+                }
+            }
+        }
     }
 
     Ok(())
