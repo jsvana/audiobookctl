@@ -2,8 +2,8 @@
 
 use crate::editor::{compute_changes, format_diff, toml_to_metadata};
 use crate::metadata::read_metadata;
-use crate::safety::{create_backup, PendingEditsCache};
 use crate::metadata::write_metadata;
+use crate::safety::{create_backup, PendingEditsCache};
 use anyhow::{bail, Context, Result};
 use std::io::{self, Write};
 use std::path::Path;
