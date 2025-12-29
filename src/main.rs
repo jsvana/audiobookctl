@@ -45,6 +45,15 @@ fn main() -> Result<()> {
         } => {
             commands::lookup::run(&file, no_dry_run, yes, no_backup)?;
         }
+        Commands::LookupAll {
+            dir,
+            auto_accept,
+            no_dry_run,
+            yes,
+            no_backup,
+        } => {
+            commands::lookup_all::run(&dir, auto_accept, no_dry_run, yes, no_backup)?;
+        }
         Commands::Organize {
             source,
             dest,

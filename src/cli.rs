@@ -82,6 +82,28 @@ pub enum Commands {
         no_backup: bool,
     },
 
+    /// Look up metadata for all audiobooks in a directory
+    LookupAll {
+        /// Directory to scan
+        dir: std::path::PathBuf,
+
+        /// Auto-apply when all sources agree (skip editor)
+        #[arg(long)]
+        auto_accept: bool,
+
+        /// Actually apply changes (default: dry-run)
+        #[arg(long)]
+        no_dry_run: bool,
+
+        /// Skip confirmation prompts
+        #[arg(long)]
+        yes: bool,
+
+        /// Skip creating backup files
+        #[arg(long = "no-backup-i-void-my-warranty")]
+        no_backup: bool,
+    },
+
     /// Organize audiobooks into a structured directory format
     Organize {
         /// Source directory containing .m4b files to organize

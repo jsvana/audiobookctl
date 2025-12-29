@@ -40,11 +40,7 @@ pub fn list(dir: &Path) -> Result<()> {
     if let Ok(config) = Config::load() {
         let limit = config.backups.max_storage_bytes;
         let percent = (total_size as f64 / limit as f64) * 100.0;
-        println!(
-            "Limit: {} ({:.1}% used)",
-            format_size(limit),
-            percent
-        );
+        println!("Limit: {} ({:.1}% used)", format_size(limit), percent);
     }
 
     Ok(())
@@ -86,7 +82,11 @@ pub fn clean(dir: &Path, all: bool, yes: bool) -> Result<()> {
         }
 
         println!();
-        println!("Cleaned {} files, freed {}", backups.len(), format_size(total_size));
+        println!(
+            "Cleaned {} files, freed {}",
+            backups.len(),
+            format_size(total_size)
+        );
     } else {
         // Interactive mode
         let mut deleted_count = 0;
@@ -120,7 +120,11 @@ pub fn clean(dir: &Path, all: bool, yes: bool) -> Result<()> {
 
         if deleted_count > 0 {
             println!();
-            println!("Cleaned {} files, freed {}", deleted_count, format_size(deleted_size));
+            println!(
+                "Cleaned {} files, freed {}",
+                deleted_count,
+                format_size(deleted_size)
+            );
         }
     }
 
