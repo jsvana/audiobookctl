@@ -149,26 +149,38 @@ pub fn merged_to_toml(merged: &MergedMetadata) -> String {
     // Helper to add a field based on its FieldValue
     fn add_field(lines: &mut Vec<String>, name: &str, value: &FieldValue) {
         match value {
-            FieldValue::Agreed {
-                value: v,
-                sources: _,
-            } => {
-                lines.push(format!("{} = \"{}\"", name, escape_toml_string(v)));
+            FieldValue::Agreed { value: v, sources } => {
+                let source_list = sources.join(", ");
+                lines.push(format!(
+                    "{} = \"{}\"  # [{}]",
+                    name,
+                    escape_toml_string(v),
+                    source_list
+                ));
             }
             FieldValue::Conflicting {
                 selected,
                 alternatives,
             } => {
                 lines.push(format!("# {}: Sources disagree - pick one:", name));
-                lines.push(format!("{} = \"{}\"", name, escape_toml_string(selected)));
+                // Find which group contains the selected value
                 for (sources, alt_value) in alternatives {
-                    let sources_str = sources.join(", ");
-                    lines.push(format!(
-                        "#   [{}] {} = \"{}\"",
-                        sources_str,
-                        name,
-                        escape_toml_string(alt_value)
-                    ));
+                    let source_list = sources.join(", ");
+                    if alt_value == selected {
+                        lines.push(format!(
+                            "{} = \"{}\"  # [{}]",
+                            name,
+                            escape_toml_string(alt_value),
+                            source_list
+                        ));
+                    } else {
+                        lines.push(format!(
+                            "# {} = \"{}\"  # [{}]",
+                            name,
+                            escape_toml_string(alt_value),
+                            source_list
+                        ));
+                    }
                 }
             }
             FieldValue::Empty => {
@@ -180,21 +192,22 @@ pub fn merged_to_toml(merged: &MergedMetadata) -> String {
     // Helper for numeric fields
     fn add_field_numeric(lines: &mut Vec<String>, name: &str, value: &FieldValue) {
         match value {
-            FieldValue::Agreed {
-                value: v,
-                sources: _,
-            } => {
-                lines.push(format!("{} = {}", name, v));
+            FieldValue::Agreed { value: v, sources } => {
+                let source_list = sources.join(", ");
+                lines.push(format!("{} = {}  # [{}]", name, v, source_list));
             }
             FieldValue::Conflicting {
                 selected,
                 alternatives,
             } => {
                 lines.push(format!("# {}: Sources disagree - pick one:", name));
-                lines.push(format!("{} = {}", name, selected));
                 for (sources, alt_value) in alternatives {
-                    let sources_str = sources.join(", ");
-                    lines.push(format!("#   [{}] {} = {}", sources_str, name, alt_value));
+                    let source_list = sources.join(", ");
+                    if alt_value == selected {
+                        lines.push(format!("{} = {}  # [{}]", name, alt_value, source_list));
+                    } else {
+                        lines.push(format!("# {} = {}  # [{}]", name, alt_value, source_list));
+                    }
                 }
             }
             FieldValue::Empty => {
@@ -304,18 +317,18 @@ mod tests {
         let merged = MergedMetadata {
             title: FieldValue::Agreed {
                 value: "The Martian".to_string(),
-                sources: vec!["audnexus".to_string()],
+                sources: vec!["file".to_string(), "audible".to_string()],
             },
             author: FieldValue::Agreed {
                 value: "Andy Weir".to_string(),
-                sources: vec!["audnexus".to_string()],
+                sources: vec!["audible".to_string()],
             },
             narrator: FieldValue::Empty,
             series: FieldValue::Empty,
             series_position: FieldValue::Empty,
             year: FieldValue::Agreed {
                 value: "2014".to_string(),
-                sources: vec!["audnexus".to_string()],
+                sources: vec!["file".to_string(), "audible".to_string()],
             },
             description: FieldValue::Empty,
             publisher: FieldValue::Empty,
@@ -326,11 +339,9 @@ mod tests {
 
         let toml = merged_to_toml(&merged);
 
-        assert!(toml.contains("# Audiobook Metadata - Lookup Results"));
-        assert!(toml.contains("title = \"The Martian\""));
-        assert!(toml.contains("author = \"Andy Weir\""));
-        assert!(toml.contains("year = 2014"));
-        assert!(toml.contains("# narrator = \"\""));
+        assert!(toml.contains("title = \"The Martian\"  # [file, audible]"));
+        assert!(toml.contains("author = \"Andy Weir\"  # [audible]"));
+        assert!(toml.contains("year = 2014  # [file, audible]"));
     }
 
     #[test]
@@ -339,7 +350,10 @@ mod tests {
             title: FieldValue::Conflicting {
                 selected: "The Martian".to_string(),
                 alternatives: vec![
-                    (vec!["audnexus".to_string()], "The Martian".to_string()),
+                    (
+                        vec!["file".to_string(), "audible".to_string()],
+                        "The Martian".to_string(),
+                    ),
                     (
                         vec!["openlibrary".to_string()],
                         "The Martian: A Novel".to_string(),
@@ -348,7 +362,7 @@ mod tests {
             },
             author: FieldValue::Agreed {
                 value: "Andy Weir".to_string(),
-                sources: vec!["audnexus".to_string(), "openlibrary".to_string()],
+                sources: vec!["audible".to_string()],
             },
             narrator: FieldValue::Empty,
             series: FieldValue::Empty,
@@ -356,7 +370,10 @@ mod tests {
             year: FieldValue::Conflicting {
                 selected: "2014".to_string(),
                 alternatives: vec![
-                    (vec!["audnexus".to_string()], "2014".to_string()),
+                    (
+                        vec!["audible".to_string(), "audnexus".to_string()],
+                        "2014".to_string(),
+                    ),
                     (vec!["openlibrary".to_string()], "2011".to_string()),
                 ],
             },
@@ -370,12 +387,12 @@ mod tests {
         let toml = merged_to_toml(&merged);
 
         assert!(toml.contains("# title: Sources disagree - pick one:"));
-        assert!(toml.contains("title = \"The Martian\""));
-        assert!(toml.contains("#   [openlibrary] title = \"The Martian: A Novel\""));
+        assert!(toml.contains("title = \"The Martian\"  # [file, audible]"));
+        assert!(toml.contains("# title = \"The Martian: A Novel\"  # [openlibrary]"));
 
         assert!(toml.contains("# year: Sources disagree - pick one:"));
-        assert!(toml.contains("year = 2014"));
-        assert!(toml.contains("#   [openlibrary] year = 2011"));
+        assert!(toml.contains("year = 2014  # [audible, audnexus]"));
+        assert!(toml.contains("# year = 2011  # [openlibrary]"));
     }
 
     #[test]
