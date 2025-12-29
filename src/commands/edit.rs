@@ -14,15 +14,9 @@ pub fn run(
     no_dry_run: bool,
     yes: bool,
     no_backup: bool,
-    clear: bool,
     commit: bool,
     commit_all: bool,
 ) -> Result<()> {
-    // Handle --clear (no file needed for --clear without file)
-    if clear {
-        return handle_clear(file);
-    }
-
     // Handle --commit-all (no file needed)
     if commit_all {
         return handle_commit_all();
@@ -153,23 +147,6 @@ fn apply_changes(
 
     // Clear pending cache
     cache.clear(file)?;
-
-    Ok(())
-}
-
-fn handle_clear(file: Option<&Path>) -> Result<()> {
-    let cache = PendingEditsCache::new()?;
-
-    if let Some(file) = file {
-        if cache.clear(file)? {
-            println!("Cleared pending edit for: {}", file.display());
-        } else {
-            println!("No pending edit found for: {}", file.display());
-        }
-    } else {
-        let count = cache.clear_all()?;
-        println!("Cleared {} pending edit(s).", count);
-    }
 
     Ok(())
 }

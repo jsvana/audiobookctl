@@ -55,15 +55,6 @@ fn test_edit_missing_file() {
 }
 
 #[test]
-fn test_edit_clear_no_file() {
-    let mut cmd = Command::cargo_bin("audiobookctl").unwrap();
-    cmd.args(["edit", "--clear"]);
-    cmd.assert()
-        .success()
-        .stdout(predicate::str::contains("Cleared"));
-}
-
-#[test]
 fn test_edit_commit_all_no_backups() {
     let mut cmd = Command::cargo_bin("audiobookctl").unwrap();
     cmd.args(["edit", "--commit-all"]);

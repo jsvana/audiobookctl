@@ -23,7 +23,6 @@ fn main() -> Result<()> {
             no_dry_run,
             yes,
             no_backup,
-            clear,
             commit,
             commit_all,
         } => {
@@ -32,7 +31,6 @@ fn main() -> Result<()> {
                 no_dry_run,
                 yes,
                 no_backup,
-                clear,
                 commit,
                 commit_all,
             )?;
