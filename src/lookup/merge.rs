@@ -6,12 +6,12 @@ use crate::metadata::AudiobookMetadata;
 /// Represents a field's merged state
 #[derive(Debug, Clone, PartialEq)]
 pub enum FieldValue {
-    /// Both sources agree (or only one source has a value)
-    Agreed(String),
-    /// Sources disagree - first is selected, rest are alternatives
+    /// All sources agree on this value
+    Agreed { value: String, sources: Vec<String> },
+    /// Sources disagree - alternatives grouped by value
     Conflicting {
         selected: String,
-        alternatives: Vec<(String, String)>, // (source_name, value)
+        alternatives: Vec<(Vec<String>, String)>, // (source_names, value)
     },
     /// No source has this field
     Empty,
@@ -42,53 +42,61 @@ pub struct MergedMetadata {
 /// 1. If all sources (including file) agree, use that value (Agreed)
 /// 2. If sources disagree, existing file value is selected (Conflicting)
 /// 3. If no source has a value, return Empty
-fn merge_field(
-    existing: &Option<String>,
-    results: &[(String, Option<String>)], // (source_name, value)
-) -> FieldValue {
+fn merge_field(existing: &Option<String>, results: &[(String, Option<String>)]) -> FieldValue {
+    use std::collections::HashMap;
+
     // Build list of all sources including existing file metadata
     let mut all_sources: Vec<(String, Option<String>)> = Vec::new();
 
-    // Add existing metadata as "file" source
     if existing.is_some() {
         all_sources.push(("file".to_string(), existing.clone()));
     }
-
-    // Add API results
     all_sources.extend(results.iter().cloned());
 
-    // Collect all sources that have a value for this field
-    let values_with_sources: Vec<(&String, &String)> = all_sources
-        .iter()
-        .filter_map(|(source, value)| value.as_ref().map(|v| (source, v)))
-        .collect();
+    // Group sources by value
+    let mut value_to_sources: HashMap<String, Vec<String>> = HashMap::new();
+    for (source, value) in &all_sources {
+        if let Some(v) = value {
+            value_to_sources
+                .entry(v.clone())
+                .or_default()
+                .push(source.clone());
+        }
+    }
 
-    if values_with_sources.is_empty() {
+    if value_to_sources.is_empty() {
         return FieldValue::Empty;
     }
 
-    // Check if all sources agree
-    let first_value = values_with_sources[0].1;
-    let all_agree = values_with_sources.iter().all(|(_, v)| *v == first_value);
+    // Convert to ordered list (preserve insertion order via all_sources)
+    let mut seen_values: Vec<String> = Vec::new();
+    for (_, value) in &all_sources {
+        if let Some(v) = value {
+            if !seen_values.contains(v) {
+                seen_values.push(v.clone());
+            }
+        }
+    }
 
-    if all_agree {
-        FieldValue::Agreed(first_value.clone())
+    let grouped: Vec<(Vec<String>, String)> = seen_values
+        .iter()
+        .map(|v| (value_to_sources.get(v).unwrap().clone(), v.clone()))
+        .collect();
+
+    if grouped.len() == 1 {
+        let (sources, value) = grouped.into_iter().next().unwrap();
+        FieldValue::Agreed { value, sources }
     } else {
-        // Sources disagree - existing file value is selected by default (if present)
+        // Select existing value if present, otherwise first value
         let selected = if let Some(existing_val) = existing {
             existing_val.clone()
         } else {
-            first_value.clone()
+            grouped[0].1.clone()
         };
-
-        let alternatives: Vec<(String, String)> = values_with_sources
-            .iter()
-            .map(|(source, value)| ((*source).clone(), (*value).clone()))
-            .collect();
 
         FieldValue::Conflicting {
             selected,
-            alternatives,
+            alternatives: grouped,
         }
     }
 }
@@ -196,6 +204,67 @@ pub fn merge_results(existing: &AudiobookMetadata, results: &[LookupResult]) -> 
 mod tests {
     use super::*;
 
+    #[test]
+    fn test_merge_field_groups_agreeing_sources() {
+        // When multiple sources have the same value, they should be grouped together
+        let existing = None;
+        let results = vec![
+            ("audible".to_string(), Some("The Martian".to_string())),
+            ("openlibrary".to_string(), Some("The Martian".to_string())),
+            ("audnexus".to_string(), Some("The Martian".to_string())),
+        ];
+
+        let result = merge_field(&existing, &results);
+        match result {
+            FieldValue::Agreed { value, sources } => {
+                assert_eq!(value, "The Martian");
+                assert_eq!(sources, vec!["audible", "openlibrary", "audnexus"]);
+            }
+            _ => panic!("Expected Agreed with sources, got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_merge_field_groups_conflicting_by_value() {
+        // When sources disagree, group by value
+        let existing = None;
+        let results = vec![
+            ("audible".to_string(), Some("The Martian".to_string())),
+            ("audnexus".to_string(), Some("The Martian".to_string())),
+            (
+                "openlibrary".to_string(),
+                Some("The Martian: A Novel".to_string()),
+            ),
+        ];
+
+        let result = merge_field(&existing, &results);
+        match result {
+            FieldValue::Conflicting {
+                selected,
+                alternatives,
+            } => {
+                assert_eq!(selected, "The Martian");
+                // Alternatives should be grouped: (sources, value)
+                assert_eq!(alternatives.len(), 2);
+                assert_eq!(
+                    alternatives[0],
+                    (
+                        vec!["audible".to_string(), "audnexus".to_string()],
+                        "The Martian".to_string()
+                    )
+                );
+                assert_eq!(
+                    alternatives[1],
+                    (
+                        vec!["openlibrary".to_string()],
+                        "The Martian: A Novel".to_string()
+                    )
+                );
+            }
+            _ => panic!("Expected Conflicting, got {:?}", result),
+        }
+    }
+
     fn make_lookup_result(source: &str) -> LookupResult {
         LookupResult {
             source: source.to_string(),
@@ -232,8 +301,8 @@ mod tests {
                 alternatives,
             } => {
                 assert_eq!(selected, "The Martian"); // Existing is selected by default
-                assert_eq!(alternatives.len(), 3); // file + 2 APIs
-                assert_eq!(alternatives[0].0, "file");
+                assert_eq!(alternatives.len(), 3); // 3 different values
+                assert_eq!(alternatives[0].0, vec!["file".to_string()]);
                 assert_eq!(alternatives[0].1, "The Martian");
             }
             _ => panic!("Expected Conflicting, got {:?}", result),
@@ -249,7 +318,13 @@ mod tests {
         ];
 
         let result = merge_field(&existing, &results);
-        assert_eq!(result, FieldValue::Agreed("2014".to_string()));
+        match result {
+            FieldValue::Agreed { value, sources } => {
+                assert_eq!(value, "2014");
+                assert_eq!(sources, vec!["audnexus", "openlibrary"]);
+            }
+            _ => panic!("Expected Agreed, got {:?}", result),
+        }
     }
 
     #[test]
@@ -270,11 +345,11 @@ mod tests {
                 assert_eq!(alternatives.len(), 2);
                 assert_eq!(
                     alternatives[0],
-                    ("audnexus".to_string(), "2014".to_string())
+                    (vec!["audnexus".to_string()], "2014".to_string())
                 );
                 assert_eq!(
                     alternatives[1],
-                    ("openlibrary".to_string(), "2011".to_string())
+                    (vec!["openlibrary".to_string()], "2011".to_string())
                 );
             }
             _ => panic!("Expected Conflicting, got {:?}", result),
@@ -302,7 +377,13 @@ mod tests {
         ];
 
         let result = merge_field(&existing, &results);
-        assert_eq!(result, FieldValue::Agreed("Andy Weir".to_string()));
+        match result {
+            FieldValue::Agreed { value, sources } => {
+                assert_eq!(value, "Andy Weir");
+                assert_eq!(sources, vec!["audnexus"]);
+            }
+            _ => panic!("Expected Agreed, got {:?}", result),
+        }
     }
 
     #[test]
@@ -314,7 +395,13 @@ mod tests {
         ];
 
         let result = merge_field_u32(&existing, &results);
-        assert_eq!(result, FieldValue::Agreed("2014".to_string()));
+        match result {
+            FieldValue::Agreed { value, sources } => {
+                assert_eq!(value, "2014");
+                assert_eq!(sources, vec!["audnexus", "openlibrary"]);
+            }
+            _ => panic!("Expected Agreed, got {:?}", result),
+        }
     }
 
     #[test]
@@ -333,8 +420,19 @@ mod tests {
                 alternatives,
             } => {
                 assert_eq!(selected, "2015"); // Existing is selected by default
-                assert_eq!(alternatives.len(), 3); // file + 2 APIs (both with same value)
-                assert_eq!(alternatives[0], ("file".to_string(), "2015".to_string()));
+                                              // With grouping: file has 2015, audnexus+openlibrary share 2014
+                assert_eq!(alternatives.len(), 2);
+                assert_eq!(
+                    alternatives[0],
+                    (vec!["file".to_string()], "2015".to_string())
+                );
+                assert_eq!(
+                    alternatives[1],
+                    (
+                        vec!["audnexus".to_string(), "openlibrary".to_string()],
+                        "2014".to_string()
+                    )
+                );
             }
             _ => panic!("Expected Conflicting, got {:?}", result),
         }
@@ -448,15 +546,30 @@ mod tests {
         let merged = merge_results(&existing, &results);
 
         // Narrator only from audnexus
-        assert_eq!(merged.narrator, FieldValue::Agreed("R.C. Bray".to_string()));
+        match &merged.narrator {
+            FieldValue::Agreed { value, sources } => {
+                assert_eq!(value, "R.C. Bray");
+                assert_eq!(sources, &vec!["audnexus".to_string()]);
+            }
+            _ => panic!("Expected narrator to be Agreed"),
+        }
 
         // ISBN only from openlibrary
-        assert_eq!(
-            merged.isbn,
-            FieldValue::Agreed("978-0553418026".to_string())
-        );
+        match &merged.isbn {
+            FieldValue::Agreed { value, sources } => {
+                assert_eq!(value, "978-0553418026");
+                assert_eq!(sources, &vec!["openlibrary".to_string()]);
+            }
+            _ => panic!("Expected isbn to be Agreed"),
+        }
 
         // ASIN only from audnexus
-        assert_eq!(merged.asin, FieldValue::Agreed("B00B5HZGUG".to_string()));
+        match &merged.asin {
+            FieldValue::Agreed { value, sources } => {
+                assert_eq!(value, "B00B5HZGUG");
+                assert_eq!(sources, &vec!["audnexus".to_string()]);
+            }
+            _ => panic!("Expected asin to be Agreed"),
+        }
     }
 }

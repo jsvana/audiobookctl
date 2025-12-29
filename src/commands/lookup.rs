@@ -149,7 +149,10 @@ pub fn merged_to_toml(merged: &MergedMetadata) -> String {
     // Helper to add a field based on its FieldValue
     fn add_field(lines: &mut Vec<String>, name: &str, value: &FieldValue) {
         match value {
-            FieldValue::Agreed(v) => {
+            FieldValue::Agreed {
+                value: v,
+                sources: _,
+            } => {
                 lines.push(format!("{} = \"{}\"", name, escape_toml_string(v)));
             }
             FieldValue::Conflicting {
@@ -158,10 +161,11 @@ pub fn merged_to_toml(merged: &MergedMetadata) -> String {
             } => {
                 lines.push(format!("# {}: Sources disagree - pick one:", name));
                 lines.push(format!("{} = \"{}\"", name, escape_toml_string(selected)));
-                for (source, alt_value) in alternatives {
+                for (sources, alt_value) in alternatives {
+                    let sources_str = sources.join(", ");
                     lines.push(format!(
                         "#   [{}] {} = \"{}\"",
-                        source,
+                        sources_str,
                         name,
                         escape_toml_string(alt_value)
                     ));
@@ -176,7 +180,10 @@ pub fn merged_to_toml(merged: &MergedMetadata) -> String {
     // Helper for numeric fields
     fn add_field_numeric(lines: &mut Vec<String>, name: &str, value: &FieldValue) {
         match value {
-            FieldValue::Agreed(v) => {
+            FieldValue::Agreed {
+                value: v,
+                sources: _,
+            } => {
                 lines.push(format!("{} = {}", name, v));
             }
             FieldValue::Conflicting {
@@ -185,8 +192,9 @@ pub fn merged_to_toml(merged: &MergedMetadata) -> String {
             } => {
                 lines.push(format!("# {}: Sources disagree - pick one:", name));
                 lines.push(format!("{} = {}", name, selected));
-                for (source, alt_value) in alternatives {
-                    lines.push(format!("#   [{}] {} = {}", source, name, alt_value));
+                for (sources, alt_value) in alternatives {
+                    let sources_str = sources.join(", ");
+                    lines.push(format!("#   [{}] {} = {}", sources_str, name, alt_value));
                 }
             }
             FieldValue::Empty => {
@@ -294,12 +302,21 @@ mod tests {
     #[test]
     fn test_merged_to_toml_agreed_fields() {
         let merged = MergedMetadata {
-            title: FieldValue::Agreed("The Martian".to_string()),
-            author: FieldValue::Agreed("Andy Weir".to_string()),
+            title: FieldValue::Agreed {
+                value: "The Martian".to_string(),
+                sources: vec!["audnexus".to_string()],
+            },
+            author: FieldValue::Agreed {
+                value: "Andy Weir".to_string(),
+                sources: vec!["audnexus".to_string()],
+            },
             narrator: FieldValue::Empty,
             series: FieldValue::Empty,
             series_position: FieldValue::Empty,
-            year: FieldValue::Agreed("2014".to_string()),
+            year: FieldValue::Agreed {
+                value: "2014".to_string(),
+                sources: vec!["audnexus".to_string()],
+            },
             description: FieldValue::Empty,
             publisher: FieldValue::Empty,
             genre: FieldValue::Empty,
@@ -322,22 +339,25 @@ mod tests {
             title: FieldValue::Conflicting {
                 selected: "The Martian".to_string(),
                 alternatives: vec![
-                    ("audnexus".to_string(), "The Martian".to_string()),
+                    (vec!["audnexus".to_string()], "The Martian".to_string()),
                     (
-                        "openlibrary".to_string(),
+                        vec!["openlibrary".to_string()],
                         "The Martian: A Novel".to_string(),
                     ),
                 ],
             },
-            author: FieldValue::Agreed("Andy Weir".to_string()),
+            author: FieldValue::Agreed {
+                value: "Andy Weir".to_string(),
+                sources: vec!["audnexus".to_string(), "openlibrary".to_string()],
+            },
             narrator: FieldValue::Empty,
             series: FieldValue::Empty,
             series_position: FieldValue::Empty,
             year: FieldValue::Conflicting {
                 selected: "2014".to_string(),
                 alternatives: vec![
-                    ("audnexus".to_string(), "2014".to_string()),
-                    ("openlibrary".to_string(), "2011".to_string()),
+                    (vec!["audnexus".to_string()], "2014".to_string()),
+                    (vec!["openlibrary".to_string()], "2011".to_string()),
                 ],
             },
             description: FieldValue::Empty,
