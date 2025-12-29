@@ -22,7 +22,7 @@ sha2 = "0.10"
 walkdir = "2"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 hex = "0.4"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 urlencoding = "2"
 tracing = "0.1"
