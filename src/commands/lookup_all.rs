@@ -4,7 +4,7 @@ use crate::commands::backups::current_usage;
 use crate::commands::lookup::{merged_to_toml, process_lookup, query_and_merge};
 use crate::config::Config;
 use crate::editor::{compute_changes, toml_to_metadata};
-use crate::lookup::MergedMetadata;
+use crate::lookup::{MergedMetadata, TrustedSource};
 use crate::metadata::{write_metadata, AudiobookMetadata};
 use crate::organize::scanner::scan_directory;
 use crate::safety::backup::{create_backup, format_size};
@@ -28,6 +28,7 @@ pub fn run(
     no_dry_run: bool,
     yes: bool,
     no_backup: bool,
+    trust_source: Option<TrustedSource>,
 ) -> Result<()> {
     let config = Config::load().unwrap_or_default();
 
@@ -54,6 +55,18 @@ pub fn run(
 
         match query_and_merge(&file.path) {
             Ok((original, merged, sources)) => {
+                // Check if trusted source has data
+                if let Some(trusted) = trust_source {
+                    if !crate::lookup::has_trusted_source_data(&merged, trusted) {
+                        println!(
+                            "skipped (trusted source '{}' has no data)",
+                            trusted.as_str()
+                        );
+                        skipped += 1;
+                        continue;
+                    }
+                }
+
                 if let Some(matched_sources) = merged.matches_file() {
                     println!("matches [{}] - skipping", matched_sources.join(", "));
                     skipped += 1;
@@ -107,7 +120,18 @@ pub fn run(
             item.path.display()
         );
 
-        if auto_accept {
+        if let Some(trusted) = trust_source {
+            // Use trusted source mode
+            let resolved = crate::lookup::resolve_with_trusted_source(&item.merged, trusted);
+            process_trusted_accept(
+                &item.path,
+                &item.original,
+                &resolved,
+                no_dry_run,
+                no_backup,
+                trusted,
+            )?;
+        } else if auto_accept {
             process_auto_accept(
                 &item.path,
                 &item.original,
@@ -226,6 +250,40 @@ fn process_auto_accept(
         } else {
             println!("  (dry-run, use --no-dry-run to apply)");
         }
+    }
+
+    Ok(())
+}
+
+/// Auto-accept using trusted source values
+fn process_trusted_accept(
+    file: &Path,
+    original: &AudiobookMetadata,
+    resolved: &MergedMetadata,
+    no_dry_run: bool,
+    no_backup: bool,
+    trusted: TrustedSource,
+) -> Result<()> {
+    let toml = merged_to_toml(resolved);
+    let new_metadata = toml_to_metadata(&toml)?;
+    let changes = compute_changes(original, &new_metadata);
+
+    if changes.is_empty() {
+        println!("  No changes from '{}'.", trusted.as_str());
+        return Ok(());
+    }
+
+    let fields: Vec<&str> = changes.iter().map(|c| c.field.as_str()).collect();
+    println!("  Trusted '{}': {}", trusted.as_str(), fields.join(", "));
+
+    if no_dry_run {
+        if !no_backup {
+            create_backup(file)?;
+        }
+        write_metadata(file, &new_metadata)?;
+        println!("  Applied.");
+    } else {
+        println!("  (dry-run, use --no-dry-run to apply)");
     }
 
     Ok(())
