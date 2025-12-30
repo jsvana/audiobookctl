@@ -1,6 +1,7 @@
 //! Merge logic for combining API results
 
 use crate::lookup::LookupResult;
+use crate::lookup::TrustedSource;
 use crate::metadata::AudiobookMetadata;
 
 /// Represents a field's merged state
@@ -249,6 +250,52 @@ pub fn merge_results(existing: &AudiobookMetadata, results: &[LookupResult]) -> 
         genre: merge_field(&existing.genre, &genre_values),
         isbn: merge_field(&existing.isbn, &isbn_values),
         asin: merge_field(&existing.asin, &asin_values),
+    }
+}
+
+/// Resolve a single field using trusted source
+fn resolve_field_with_trusted(field: &FieldValue, trusted: &str) -> FieldValue {
+    match field {
+        FieldValue::Conflicting { alternatives, .. } => {
+            // Find the trusted source's value
+            for (sources, value) in alternatives {
+                if sources.iter().any(|s| s == trusted) {
+                    return FieldValue::Agreed {
+                        value: value.clone(),
+                        sources: sources.clone(),
+                    };
+                }
+            }
+            // Trusted source not in alternatives, keep as-is
+            field.clone()
+        }
+        // Non-conflicts pass through unchanged
+        other => other.clone(),
+    }
+}
+
+/// Resolve all conflicts in merged metadata using trusted source
+///
+/// Converts Conflicting fields to Agreed when the trusted source has a value.
+/// Non-conflicting fields pass through unchanged.
+pub fn resolve_with_trusted_source(
+    merged: &MergedMetadata,
+    trusted: TrustedSource,
+) -> MergedMetadata {
+    let trusted_str = trusted.as_str();
+
+    MergedMetadata {
+        title: resolve_field_with_trusted(&merged.title, trusted_str),
+        author: resolve_field_with_trusted(&merged.author, trusted_str),
+        narrator: resolve_field_with_trusted(&merged.narrator, trusted_str),
+        series: resolve_field_with_trusted(&merged.series, trusted_str),
+        series_position: resolve_field_with_trusted(&merged.series_position, trusted_str),
+        year: resolve_field_with_trusted(&merged.year, trusted_str),
+        description: resolve_field_with_trusted(&merged.description, trusted_str),
+        publisher: resolve_field_with_trusted(&merged.publisher, trusted_str),
+        genre: resolve_field_with_trusted(&merged.genre, trusted_str),
+        isbn: resolve_field_with_trusted(&merged.isbn, trusted_str),
+        asin: resolve_field_with_trusted(&merged.asin, trusted_str),
     }
 }
 
@@ -696,5 +743,40 @@ mod tests {
         };
 
         assert_eq!(merged.matches_file(), None);
+    }
+
+    #[test]
+    fn test_resolve_trusted_source_wins_conflict() {
+        use crate::lookup::TrustedSource;
+
+        let merged = MergedMetadata {
+            title: FieldValue::Conflicting {
+                selected: "File Title".to_string(),
+                alternatives: vec![
+                    (vec!["file".to_string()], "File Title".to_string()),
+                    (vec!["audible".to_string()], "Audible Title".to_string()),
+                ],
+            },
+            author: FieldValue::Empty,
+            narrator: FieldValue::Empty,
+            series: FieldValue::Empty,
+            series_position: FieldValue::Empty,
+            year: FieldValue::Empty,
+            description: FieldValue::Empty,
+            publisher: FieldValue::Empty,
+            genre: FieldValue::Empty,
+            isbn: FieldValue::Empty,
+            asin: FieldValue::Empty,
+        };
+
+        let resolved = resolve_with_trusted_source(&merged, TrustedSource::Audible);
+
+        match &resolved.title {
+            FieldValue::Agreed { value, sources } => {
+                assert_eq!(value, "Audible Title");
+                assert_eq!(sources, &["audible".to_string()]);
+            }
+            _ => panic!("Expected Agreed, got {:?}", resolved.title),
+        }
     }
 }
