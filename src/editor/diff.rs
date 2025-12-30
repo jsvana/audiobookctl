@@ -147,10 +147,13 @@ fn truncate_value(value: &str, max_width: usize) -> String {
     // Replace newlines with spaces for display
     let single_line = value.replace('\n', " ");
 
-    if single_line.len() <= max_width {
+    let char_count = single_line.chars().count();
+
+    if char_count <= max_width {
         single_line
     } else {
-        format!("{}...", &single_line[..max_width - 3])
+        let truncated: String = single_line.chars().take(max_width - 3).collect();
+        format!("{}...", truncated)
     }
 }
 
@@ -212,5 +215,16 @@ mod tests {
         assert!(output.contains("title"));
         assert!(output.contains("Old"));
         assert!(output.contains("New"));
+    }
+
+    #[test]
+    fn test_truncate_value_with_multibyte_utf8() {
+        // The bullet character '•' is a 3-byte UTF-8 character
+        let value = "NATIONAL BESTSELLER • The definitive history";
+
+        // Should not panic when truncating through multi-byte characters
+        let result = super::truncate_value(value, 24);
+        assert!(result.ends_with("..."));
+        assert_eq!(result.chars().count(), 24);
     }
 }
