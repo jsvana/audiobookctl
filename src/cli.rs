@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+use crate::lookup::TrustedSource;
+
 #[derive(Parser)]
 #[command(name = "audiobookctl")]
 #[command(about = "CLI tool for reading, editing, and organizing m4b audiobook metadata")]
@@ -76,6 +78,10 @@ pub enum Commands {
         /// Skip creating backup file
         #[arg(long = "no-backup-i-void-my-warranty")]
         no_backup: bool,
+
+        /// Trust this source and auto-accept its values (skip editor for conflicts)
+        #[arg(long, value_enum)]
+        trust_source: Option<TrustedSource>,
     },
 
     /// Look up metadata for all audiobooks in a directory
@@ -98,6 +104,10 @@ pub enum Commands {
         /// Skip creating backup files
         #[arg(long = "no-backup-i-void-my-warranty")]
         no_backup: bool,
+
+        /// Trust this source and auto-accept its values (skip editor for conflicts)
+        #[arg(long, value_enum)]
+        trust_source: Option<TrustedSource>,
     },
 
     /// Organize audiobooks into a structured directory format
