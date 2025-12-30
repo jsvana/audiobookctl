@@ -779,4 +779,73 @@ mod tests {
             _ => panic!("Expected Agreed, got {:?}", resolved.title),
         }
     }
+
+    #[test]
+    fn test_resolve_trusted_preserves_file_only_values() {
+        use crate::lookup::TrustedSource;
+
+        let merged = MergedMetadata {
+            title: FieldValue::Agreed {
+                value: "File Title".to_string(),
+                sources: vec!["file".to_string()],
+            },
+            author: FieldValue::Empty,
+            narrator: FieldValue::Empty,
+            series: FieldValue::Empty,
+            series_position: FieldValue::Empty,
+            year: FieldValue::Empty,
+            description: FieldValue::Empty,
+            publisher: FieldValue::Empty,
+            genre: FieldValue::Empty,
+            isbn: FieldValue::Empty,
+            asin: FieldValue::Empty,
+        };
+
+        let resolved = resolve_with_trusted_source(&merged, TrustedSource::Audible);
+
+        // File-only value should be preserved
+        match &resolved.title {
+            FieldValue::Agreed { value, sources } => {
+                assert_eq!(value, "File Title");
+                assert_eq!(sources, &vec!["file".to_string()]);
+            }
+            _ => panic!("Expected Agreed from file, got {:?}", resolved.title),
+        }
+    }
+
+    #[test]
+    fn test_resolve_trusted_not_in_conflict_keeps_original() {
+        use crate::lookup::TrustedSource;
+
+        // Conflict between file and openlibrary, but we trust audible
+        let merged = MergedMetadata {
+            title: FieldValue::Conflicting {
+                selected: "File Title".to_string(),
+                alternatives: vec![
+                    (vec!["file".to_string()], "File Title".to_string()),
+                    (vec!["openlibrary".to_string()], "OL Title".to_string()),
+                ],
+            },
+            author: FieldValue::Empty,
+            narrator: FieldValue::Empty,
+            series: FieldValue::Empty,
+            series_position: FieldValue::Empty,
+            year: FieldValue::Empty,
+            description: FieldValue::Empty,
+            publisher: FieldValue::Empty,
+            genre: FieldValue::Empty,
+            isbn: FieldValue::Empty,
+            asin: FieldValue::Empty,
+        };
+
+        let resolved = resolve_with_trusted_source(&merged, TrustedSource::Audible);
+
+        // Audible not in conflict, so keep original conflict
+        match &resolved.title {
+            FieldValue::Conflicting { selected, .. } => {
+                assert_eq!(selected, "File Title");
+            }
+            _ => panic!("Expected Conflicting (audible not present), got {:?}", resolved.title),
+        }
+    }
 }
