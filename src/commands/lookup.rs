@@ -2,7 +2,8 @@
 
 use crate::editor::{compute_changes, format_diff, toml_to_metadata};
 use crate::lookup::{
-    fetch_audible, fetch_openlibrary, merge_results, FieldValue, LookupResult, MergedMetadata,
+    fetch_audible, fetch_openlibrary, has_trusted_source_data, merge_results,
+    resolve_with_trusted_source, FieldValue, LookupResult, MergedMetadata, TrustedSource,
 };
 use crate::metadata::{read_metadata, write_metadata, AudiobookMetadata};
 use crate::safety::{create_backup, PendingEditsCache};
@@ -74,8 +75,58 @@ pub fn process_lookup(
     }
 }
 
+/// Process lookup with trusted source (no editor, auto-apply)
+fn process_trusted_lookup(
+    file: &Path,
+    original: &AudiobookMetadata,
+    resolved: &MergedMetadata,
+    no_dry_run: bool,
+    no_backup: bool,
+    trusted: TrustedSource,
+) -> Result<()> {
+    // Generate metadata from resolved merge
+    let toml = merged_to_toml(resolved);
+    let new_metadata = toml_to_metadata(&toml)?;
+    let changes = compute_changes(original, &new_metadata);
+
+    if changes.is_empty() {
+        println!("No changes from trusted source '{}'.", trusted.as_str());
+        return Ok(());
+    }
+
+    // Show what will be applied
+    let fields: Vec<&str> = changes.iter().map(|c| c.field.as_str()).collect();
+    println!(
+        "Trusted source '{}': applying {}",
+        trusted.as_str(),
+        fields.join(", ")
+    );
+
+    if no_dry_run {
+        if !no_backup {
+            let backup = create_backup(file)?;
+            println!("  Created backup: {}", backup.display());
+        }
+        write_metadata(file, &new_metadata)?;
+        println!("  Applied.");
+    } else {
+        // Save to pending cache
+        let cache = PendingEditsCache::new()?;
+        cache.save(file, &toml)?;
+        println!("  (dry-run) Saved to pending. Use --no-dry-run to apply.");
+    }
+
+    Ok(())
+}
+
 /// Main entry point for the lookup command
-pub fn run(file: &Path, no_dry_run: bool, yes: bool, no_backup: bool) -> Result<()> {
+pub fn run(
+    file: &Path,
+    no_dry_run: bool,
+    yes: bool,
+    no_backup: bool,
+    trust_source: Option<TrustedSource>,
+) -> Result<()> {
     println!("Reading metadata from {}...", file.display());
 
     let (original, merged, _sources) = query_and_merge(file)?;
@@ -88,6 +139,21 @@ pub fn run(file: &Path, no_dry_run: bool, yes: bool, no_backup: bool) -> Result<
             sources.join(", ")
         );
         return Ok(());
+    }
+
+    // Handle trusted source mode
+    if let Some(trusted) = trust_source {
+        if !has_trusted_source_data(&merged, trusted) {
+            println!(
+                "Skipping {}: trusted source '{}' returned no results",
+                file.display(),
+                trusted.as_str()
+            );
+            return Ok(());
+        }
+
+        let resolved = resolve_with_trusted_source(&merged, trusted);
+        return process_trusted_lookup(file, &original, &resolved, no_dry_run, no_backup, trusted);
     }
 
     process_lookup(file, &original, &merged, no_dry_run, yes, no_backup)?;
