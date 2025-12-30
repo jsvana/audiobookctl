@@ -40,8 +40,9 @@ fn main() -> Result<()> {
             no_dry_run,
             yes,
             no_backup,
+            trust_source,
         } => {
-            commands::lookup::run(&file, no_dry_run, yes, no_backup)?;
+            commands::lookup::run(&file, no_dry_run, yes, no_backup, trust_source)?;
         }
         Commands::LookupAll {
             dir,
@@ -49,8 +50,9 @@ fn main() -> Result<()> {
             no_dry_run,
             yes,
             no_backup,
+            trust_source,
         } => {
-            commands::lookup_all::run(&dir, auto_accept, no_dry_run, yes, no_backup)?;
+            commands::lookup_all::run(&dir, auto_accept, no_dry_run, yes, no_backup, trust_source)?;
         }
         Commands::Organize {
             source,
