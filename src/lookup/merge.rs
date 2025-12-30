@@ -299,6 +299,36 @@ pub fn resolve_with_trusted_source(
     }
 }
 
+/// Check if trusted source provided any data in the merged result
+///
+/// Returns true if the trusted source appears in any field's sources.
+/// Used to skip files when trusted source returned no results.
+pub fn has_trusted_source_data(merged: &MergedMetadata, trusted: TrustedSource) -> bool {
+    let trusted_str = trusted.as_str();
+
+    fn field_has_source(field: &FieldValue, source: &str) -> bool {
+        match field {
+            FieldValue::Agreed { sources, .. } => sources.iter().any(|s| s == source),
+            FieldValue::Conflicting { alternatives, .. } => alternatives
+                .iter()
+                .any(|(sources, _)| sources.iter().any(|s| s == source)),
+            FieldValue::Empty => false,
+        }
+    }
+
+    field_has_source(&merged.title, trusted_str)
+        || field_has_source(&merged.author, trusted_str)
+        || field_has_source(&merged.narrator, trusted_str)
+        || field_has_source(&merged.series, trusted_str)
+        || field_has_source(&merged.series_position, trusted_str)
+        || field_has_source(&merged.year, trusted_str)
+        || field_has_source(&merged.description, trusted_str)
+        || field_has_source(&merged.publisher, trusted_str)
+        || field_has_source(&merged.genre, trusted_str)
+        || field_has_source(&merged.isbn, trusted_str)
+        || field_has_source(&merged.asin, trusted_str)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -845,7 +875,58 @@ mod tests {
             FieldValue::Conflicting { selected, .. } => {
                 assert_eq!(selected, "File Title");
             }
-            _ => panic!("Expected Conflicting (audible not present), got {:?}", resolved.title),
+            _ => panic!(
+                "Expected Conflicting (audible not present), got {:?}",
+                resolved.title
+            ),
         }
+    }
+
+    #[test]
+    fn test_has_trusted_source_data_returns_true_when_present() {
+        use crate::lookup::TrustedSource;
+
+        let merged = MergedMetadata {
+            title: FieldValue::Agreed {
+                value: "Title".to_string(),
+                sources: vec!["audible".to_string()],
+            },
+            author: FieldValue::Empty,
+            narrator: FieldValue::Empty,
+            series: FieldValue::Empty,
+            series_position: FieldValue::Empty,
+            year: FieldValue::Empty,
+            description: FieldValue::Empty,
+            publisher: FieldValue::Empty,
+            genre: FieldValue::Empty,
+            isbn: FieldValue::Empty,
+            asin: FieldValue::Empty,
+        };
+
+        assert!(has_trusted_source_data(&merged, TrustedSource::Audible));
+    }
+
+    #[test]
+    fn test_has_trusted_source_data_returns_false_when_missing() {
+        use crate::lookup::TrustedSource;
+
+        let merged = MergedMetadata {
+            title: FieldValue::Agreed {
+                value: "Title".to_string(),
+                sources: vec!["openlibrary".to_string()],
+            },
+            author: FieldValue::Empty,
+            narrator: FieldValue::Empty,
+            series: FieldValue::Empty,
+            series_position: FieldValue::Empty,
+            year: FieldValue::Empty,
+            description: FieldValue::Empty,
+            publisher: FieldValue::Empty,
+            genre: FieldValue::Empty,
+            isbn: FieldValue::Empty,
+            asin: FieldValue::Empty,
+        };
+
+        assert!(!has_trusted_source_data(&merged, TrustedSource::Audible));
     }
 }
