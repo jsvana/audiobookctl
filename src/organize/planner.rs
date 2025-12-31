@@ -193,6 +193,7 @@ mod tests {
                 title: Some(title.to_string()),
                 ..Default::default()
             },
+            auxiliary_files: Vec::new(),
         }
     }
 
@@ -226,6 +227,7 @@ mod tests {
                 title: Some("Title".to_string()),
                 ..Default::default()
             },
+            auxiliary_files: Vec::new(),
         }];
 
         let template = FormatTemplate::parse("{author}/{title}/{filename}").unwrap();

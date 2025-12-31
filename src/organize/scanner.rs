@@ -51,6 +51,7 @@ pub fn scan_directory(dir: &Path) -> Result<Vec<ScannedFile>> {
                 path: path.to_path_buf(),
                 filename,
                 metadata,
+                auxiliary_files: Vec::new(),
             });
         }
     }
@@ -68,6 +69,16 @@ fn is_m4b_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// Check if a path is an auxiliary file
+fn is_auxiliary_file(path: &Path) -> bool {
+    path.extension()
+        .map(|ext| {
+            let ext_lower = ext.to_string_lossy().to_lowercase();
+            AUXILIARY_EXTENSIONS.contains(&ext_lower.as_str())
+        })
+        .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -78,5 +89,14 @@ mod tests {
         assert!(is_m4b_file(Path::new("/path/to/book.M4B")));
         assert!(!is_m4b_file(Path::new("/path/to/book.mp3")));
         assert!(!is_m4b_file(Path::new("/path/to/book")));
+    }
+
+    #[test]
+    fn test_is_auxiliary_file() {
+        assert!(is_auxiliary_file(Path::new("/path/to/book.cue")));
+        assert!(is_auxiliary_file(Path::new("/path/to/notes.pdf")));
+        assert!(is_auxiliary_file(Path::new("/path/to/NOTES.PDF")));
+        assert!(!is_auxiliary_file(Path::new("/path/to/book.m4b")));
+        assert!(!is_auxiliary_file(Path::new("/path/to/book.mp3")));
     }
 }
