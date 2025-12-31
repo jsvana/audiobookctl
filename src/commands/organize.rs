@@ -320,11 +320,7 @@ fn execute_plan(
             aux_count
         );
     } else {
-        println!(
-            "{} {} file(s) copied.",
-            "Done!".green().bold(),
-            total_m4b
-        );
+        println!("{} {} file(s) copied.", "Done!".green().bold(), total_m4b);
     }
 
     Ok(())

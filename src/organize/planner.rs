@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use super::format::FormatTemplate;
-use super::scanner::{AuxiliaryFile, ScannedFile};
+use super::scanner::ScannedFile;
 
 /// A planned auxiliary file operation
 #[derive(Debug, Clone)]
