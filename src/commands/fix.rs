@@ -149,6 +149,8 @@ fn execute_fix(plan: &FixPlan) -> Result<()> {
     println!();
     println!("{}", "Moving files...".green());
 
+    let mut aux_count = 0;
+
     for op in &plan.needs_fix {
         // Create parent directories
         if let Some(parent) = op.dest.parent() {
@@ -156,22 +158,60 @@ fn execute_fix(plan: &FixPlan) -> Result<()> {
                 .with_context(|| format!("Failed to create directory {:?}", parent))?;
         }
 
-        // Move file (rename)
+        // Move m4b file (rename)
         std::fs::rename(&op.source, &op.dest)
             .with_context(|| format!("Failed to move {:?} to {:?}", op.source, op.dest))?;
 
         println!("  {} {}", "✓".green(), op.dest.display());
+
+        // Move auxiliary files
+        for aux in &op.auxiliary {
+            // Create parent directories for auxiliary file
+            if let Some(parent) = aux.dest.parent() {
+                std::fs::create_dir_all(parent)
+                    .with_context(|| format!("Failed to create directory {:?}", parent))?;
+            }
+
+            // Skip if destination already exists
+            if aux.dest.exists() {
+                println!(
+                    "    {} {} (skipped, exists)",
+                    "○".yellow(),
+                    aux.dest.file_name().unwrap_or_default().to_string_lossy()
+                );
+                continue;
+            }
+
+            std::fs::rename(&aux.source, &aux.dest)
+                .with_context(|| format!("Failed to move {:?} to {:?}", aux.source, aux.dest))?;
+
+            println!(
+                "    {} {}",
+                "+".cyan(),
+                aux.dest.file_name().unwrap_or_default().to_string_lossy()
+            );
+            aux_count += 1;
+        }
 
         // Try to remove empty parent directories
         cleanup_empty_dirs(&op.source);
     }
 
     println!();
-    println!(
-        "{} {} file(s) moved.",
-        "Done!".green().bold(),
-        plan.needs_fix.len()
-    );
+    if aux_count > 0 {
+        println!(
+            "{} {} audiobook(s) + {} auxiliary file(s) moved.",
+            "Done!".green().bold(),
+            plan.needs_fix.len(),
+            aux_count
+        );
+    } else {
+        println!(
+            "{} {} file(s) moved.",
+            "Done!".green().bold(),
+            plan.needs_fix.len()
+        );
+    }
 
     Ok(())
 }
