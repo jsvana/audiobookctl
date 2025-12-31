@@ -118,14 +118,17 @@ mod tests {
             PlannedOperation {
                 source: PathBuf::from("/source/book1.m4b"),
                 dest: PathBuf::from("/dest/Author A/Title 1/book1.m4b"),
+                auxiliary: Vec::new(),
             },
             PlannedOperation {
                 source: PathBuf::from("/source/book2.m4b"),
                 dest: PathBuf::from("/dest/Author A/Title 2/book2.m4b"),
+                auxiliary: Vec::new(),
             },
             PlannedOperation {
                 source: PathBuf::from("/source/book3.m4b"),
                 dest: PathBuf::from("/dest/Author B/Title 3/book3.m4b"),
+                auxiliary: Vec::new(),
             },
         ];
 
@@ -142,6 +145,7 @@ mod tests {
         let operations = vec![PlannedOperation {
             source: PathBuf::from("/source/book.m4b"),
             dest: PathBuf::from("/dest/Author/Title/book.m4b"),
+            auxiliary: Vec::new(),
         }];
 
         let list = render_list(&operations);
