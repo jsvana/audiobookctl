@@ -242,6 +242,8 @@ fn execute_plan(
     println!();
     println!("{}", "Copying files...".green());
 
+    let mut aux_count = 0;
+
     // Copy organized files
     for op in operations {
         // Create parent directories
@@ -250,11 +252,40 @@ fn execute_plan(
                 .with_context(|| format!("Failed to create directory {:?}", parent))?;
         }
 
-        // Copy file
+        // Copy m4b file
         std::fs::copy(&op.source, &op.dest)
             .with_context(|| format!("Failed to copy {:?} to {:?}", op.source, op.dest))?;
 
         println!("  {} {}", "✓".green(), op.dest.display());
+
+        // Copy auxiliary files
+        for aux in &op.auxiliary {
+            // Create parent directories for auxiliary file
+            if let Some(parent) = aux.dest.parent() {
+                std::fs::create_dir_all(parent)
+                    .with_context(|| format!("Failed to create directory {:?}", parent))?;
+            }
+
+            // Skip if destination already exists
+            if aux.dest.exists() {
+                println!(
+                    "    {} {} (skipped, exists)",
+                    "○".yellow(),
+                    aux.dest.file_name().unwrap_or_default().to_string_lossy()
+                );
+                continue;
+            }
+
+            std::fs::copy(&aux.source, &aux.dest)
+                .with_context(|| format!("Failed to copy {:?} to {:?}", aux.source, aux.dest))?;
+
+            println!(
+                "    {} {}",
+                "+".cyan(),
+                aux.dest.file_name().unwrap_or_default().to_string_lossy()
+            );
+            aux_count += 1;
+        }
     }
 
     // Copy uncategorized files
@@ -275,16 +306,26 @@ fn execute_plan(
     }
 
     println!();
-    println!(
-        "{} {} file(s) copied.",
-        "Done!".green().bold(),
-        operations.len()
-            + if allow_uncategorized {
-                uncategorized.len()
-            } else {
-                0
-            }
-    );
+    let total_m4b = operations.len()
+        + if allow_uncategorized {
+            uncategorized.len()
+        } else {
+            0
+        };
+    if aux_count > 0 {
+        println!(
+            "{} {} audiobook(s) + {} auxiliary file(s) copied.",
+            "Done!".green().bold(),
+            total_m4b,
+            aux_count
+        );
+    } else {
+        println!(
+            "{} {} file(s) copied.",
+            "Done!".green().bold(),
+            total_m4b
+        );
+    }
 
     Ok(())
 }
