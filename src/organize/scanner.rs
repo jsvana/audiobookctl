@@ -4,12 +4,26 @@ use walkdir::WalkDir;
 
 use crate::metadata::{read_metadata, AudiobookMetadata};
 
+/// Auxiliary file discovered alongside an m4b (e.g., .cue, .pdf)
+#[derive(Debug, Clone)]
+pub struct AuxiliaryFile {
+    /// Absolute path on disk
+    pub path: PathBuf,
+    /// Path relative to the m4b's parent directory
+    pub relative_path: PathBuf,
+}
+
+/// Extensions recognized as auxiliary files
+const AUXILIARY_EXTENSIONS: &[&str] = &["cue", "pdf"];
+
 /// Information about a scanned audiobook file
 #[derive(Debug, Clone)]
 pub struct ScannedFile {
     pub path: PathBuf,
     pub filename: String,
     pub metadata: AudiobookMetadata,
+    /// Auxiliary files found in the same directory tree
+    pub auxiliary_files: Vec<AuxiliaryFile>,
 }
 
 /// Recursively scan a directory for .m4b files and read their metadata
