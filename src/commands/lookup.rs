@@ -2,8 +2,9 @@
 
 use crate::editor::{compute_changes, format_diff, toml_to_metadata};
 use crate::lookup::{
-    fetch_audible, fetch_openlibrary, has_trusted_source_data, merge_results,
-    resolve_with_trusted_source, FieldValue, LookupResult, MergedMetadata, TrustedSource,
+    extract_asin_from_filename, fetch_audible, fetch_audnexus, fetch_openlibrary,
+    has_trusted_source_data, merge_results, resolve_with_trusted_source, FieldValue, LookupResult,
+    MergedMetadata, TrustedSource,
 };
 use crate::metadata::{read_metadata, write_metadata, AudiobookMetadata};
 use crate::safety::{create_backup, PendingEditsCache};
@@ -15,7 +16,14 @@ use std::process::Command;
 /// Query APIs and merge with existing metadata
 pub fn query_and_merge(file: &Path) -> Result<(AudiobookMetadata, MergedMetadata, Vec<String>)> {
     let original_metadata = read_metadata(file)?;
-    let results = query_apis_sync(&original_metadata)?;
+
+    // Try to extract ASIN from filename for more accurate lookup
+    let filename_asin = extract_asin_from_filename(file);
+    if let Some(ref asin) = filename_asin {
+        println!("  Found ASIN in filename: {}", asin);
+    }
+
+    let results = query_apis_sync(&original_metadata, filename_asin.as_deref())?;
 
     if results.is_empty() {
         anyhow::bail!("No results found from any API");
@@ -162,13 +170,19 @@ pub fn run(
 }
 
 /// Synchronous wrapper for async API queries using tokio runtime
-fn query_apis_sync(metadata: &AudiobookMetadata) -> Result<Vec<LookupResult>> {
+fn query_apis_sync(
+    metadata: &AudiobookMetadata,
+    filename_asin: Option<&str>,
+) -> Result<Vec<LookupResult>> {
     let rt = tokio::runtime::Runtime::new().context("Failed to create tokio runtime")?;
-    rt.block_on(query_apis(metadata))
+    rt.block_on(query_apis(metadata, filename_asin))
 }
 
 /// Query APIs concurrently
-async fn query_apis(metadata: &AudiobookMetadata) -> Result<Vec<LookupResult>> {
+async fn query_apis(
+    metadata: &AudiobookMetadata,
+    filename_asin: Option<&str>,
+) -> Result<Vec<LookupResult>> {
     let client = reqwest::Client::new();
 
     // Extract search parameters from existing metadata
@@ -176,7 +190,37 @@ async fn query_apis(metadata: &AudiobookMetadata) -> Result<Vec<LookupResult>> {
     let author = metadata.author.as_deref();
     let isbn = metadata.isbn.as_deref();
 
-    // Query both APIs concurrently
+    // Determine which ASIN to use for Audnexus lookup
+    // Prefer ASIN from filename (authoritative), fall back to metadata
+    let asin_for_lookup = filename_asin.or(metadata.asin.as_deref());
+
+    let mut results = Vec::new();
+
+    // If we have an ASIN (especially from filename), query Audnexus first
+    // This is the most accurate source when ASIN is known
+    if let Some(asin) = asin_for_lookup {
+        print!("Querying Audnexus (ASIN: {})... ", asin);
+        io::stdout().flush()?;
+
+        match fetch_audnexus(&client, title, author, Some(asin)).await {
+            Ok(Some(mut result)) => {
+                // Mark source as "audnexus" or "audnexus (filename)" for clarity
+                if filename_asin.is_some() {
+                    result.source = "audnexus (filename ASIN)".to_string();
+                }
+                println!("found \"{}\"", result.title.as_deref().unwrap_or("Unknown"));
+                results.push(result);
+            }
+            Ok(None) => {
+                println!("no results");
+            }
+            Err(e) => {
+                eprintln!("error - {}", e);
+            }
+        }
+    }
+
+    // Query Audible and Open Library concurrently
     print!("Querying Audible... ");
     io::stdout().flush()?;
 
@@ -191,8 +235,6 @@ async fn query_apis(metadata: &AudiobookMetadata) -> Result<Vec<LookupResult>> {
     let (audible_result, openlibrary_result) = tokio::join!(audible_future, openlibrary_future);
 
     println!(); // Newline after status messages
-
-    let mut results = Vec::new();
 
     // Handle Audible result
     match audible_result {
