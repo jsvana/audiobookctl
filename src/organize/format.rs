@@ -18,6 +18,10 @@ pub const PLACEHOLDERS: &[(&str, &str)] = &[
         "series_position",
         "Position in series (supports :02 padding)",
     ),
+    (
+        "series_title",
+        "Series position + title (e.g., '01 - Book Name')",
+    ),
     ("narrator", "Narrator name"),
     ("year", "Publication year"),
     ("genre", "Genre"),
