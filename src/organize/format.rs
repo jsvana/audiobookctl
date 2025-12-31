@@ -245,11 +245,18 @@ impl FormatTemplate {
 /// Sanitize a string for use as a path component
 /// Removes/replaces characters that are problematic on filesystems
 fn sanitize_path_component(s: &str) -> String {
+    // First handle ": " (colon-space) pattern, common in subtitles
+    // "Book: Subtitle" -> "Book - Subtitle"
+    let s = s.replace(": ", " - ");
+
+    // Then handle remaining colons
+    // "12:00" -> "12-00"
+    let s = s.replace(':', "-");
+
+    // Replace other problematic characters with underscore
     s.chars()
         .map(|c| match c {
-            // Replace problematic characters with safe alternatives
-            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
-            // Keep most other characters
+            '/' | '\\' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
             _ => c,
         })
         .collect::<String>()
@@ -310,7 +317,11 @@ mod tests {
 
     #[test]
     fn test_sanitize_path_component() {
-        assert_eq!(sanitize_path_component("Hello: World"), "Hello_ World");
+        // Colons with space become " - " (subtitle format)
+        assert_eq!(sanitize_path_component("Hello: World"), "Hello - World");
+        // Colons without space become "-"
+        assert_eq!(sanitize_path_component("12:00"), "12-00");
+        // Other problematic characters become underscore
         assert_eq!(sanitize_path_component("Book/Part 1"), "Book_Part 1");
     }
 
