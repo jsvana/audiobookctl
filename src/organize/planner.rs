@@ -2,13 +2,22 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use super::format::FormatTemplate;
-use super::scanner::ScannedFile;
+use super::scanner::{AuxiliaryFile, ScannedFile};
+
+/// A planned auxiliary file operation
+#[derive(Debug, Clone)]
+pub struct AuxiliaryOperation {
+    pub source: PathBuf,
+    pub dest: PathBuf,
+}
 
 /// A planned file operation (copy or move)
 #[derive(Debug, Clone)]
 pub struct PlannedOperation {
     pub source: PathBuf,
     pub dest: PathBuf,
+    /// Auxiliary files to copy/move with this m4b
+    pub auxiliary: Vec<AuxiliaryOperation>,
 }
 
 /// A file that couldn't be organized due to missing metadata
