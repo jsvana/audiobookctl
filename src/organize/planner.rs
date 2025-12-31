@@ -57,10 +57,23 @@ impl OrganizePlan {
         for file in files {
             match template.generate_path(&file.metadata, &file.filename) {
                 Ok(relative_path) => {
-                    let dest = dest_dir.join(relative_path);
+                    let dest = dest_dir.join(&relative_path);
+                    let dest_parent = dest.parent().unwrap_or(dest_dir);
+
+                    // Build auxiliary operations preserving relative structure
+                    let auxiliary: Vec<AuxiliaryOperation> = file
+                        .auxiliary_files
+                        .iter()
+                        .map(|aux| AuxiliaryOperation {
+                            source: aux.path.clone(),
+                            dest: dest_parent.join(&aux.relative_path),
+                        })
+                        .collect();
+
                     operations.push(PlannedOperation {
                         source: file.path.clone(),
                         dest: dest.clone(),
+                        auxiliary,
                     });
                     dest_to_sources
                         .entry(dest)
