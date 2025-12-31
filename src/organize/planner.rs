@@ -147,9 +147,21 @@ impl FixPlan {
                     if file.path == expected_dest {
                         compliant.push(file.path.clone());
                     } else {
+                        // Build auxiliary operations preserving relative structure
+                        let dest_parent = expected_dest.parent().unwrap_or(dest_dir);
+                        let auxiliary: Vec<AuxiliaryOperation> = file
+                            .auxiliary_files
+                            .iter()
+                            .map(|aux| AuxiliaryOperation {
+                                source: aux.path.clone(),
+                                dest: dest_parent.join(&aux.relative_path),
+                            })
+                            .collect();
+
                         needs_fix.push(PlannedOperation {
                             source: file.path.clone(),
                             dest: expected_dest.clone(),
+                            auxiliary,
                         });
                         dest_to_sources
                             .entry(expected_dest)
