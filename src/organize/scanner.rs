@@ -79,6 +79,32 @@ fn is_auxiliary_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// Scan for auxiliary files in a directory and its subdirectories
+fn scan_auxiliary_files(m4b_dir: &Path) -> Vec<AuxiliaryFile> {
+    let mut auxiliary = Vec::new();
+
+    for entry in WalkDir::new(m4b_dir)
+        .follow_links(true)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        let path = entry.path();
+
+        if path.is_file() && is_auxiliary_file(path) {
+            if let Ok(relative) = path.strip_prefix(m4b_dir) {
+                auxiliary.push(AuxiliaryFile {
+                    path: path.to_path_buf(),
+                    relative_path: relative.to_path_buf(),
+                });
+            }
+        }
+    }
+
+    // Sort for consistent output
+    auxiliary.sort_by(|a, b| a.path.cmp(&b.path));
+    auxiliary
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
