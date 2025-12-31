@@ -47,11 +47,17 @@ pub fn scan_directory(dir: &Path) -> Result<Vec<ScannedFile>> {
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
 
+            // Scan for auxiliary files in the m4b's parent directory
+            let auxiliary_files = path
+                .parent()
+                .map(scan_auxiliary_files)
+                .unwrap_or_default();
+
             files.push(ScannedFile {
                 path: path.to_path_buf(),
                 filename,
                 metadata,
-                auxiliary_files: Vec::new(),
+                auxiliary_files,
             });
         }
     }
