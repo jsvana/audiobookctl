@@ -82,6 +82,15 @@ pub fn render_list(operations: &[PlannedOperation]) -> String {
             op.source.display(),
             op.dest.display()
         ));
+
+        // Show auxiliary files indented under the m4b
+        for aux in &op.auxiliary {
+            output.push_str(&format!(
+                "  + {} → {}\n",
+                aux.source.file_name().unwrap_or_default().to_string_lossy(),
+                aux.dest.file_name().unwrap_or_default().to_string_lossy()
+            ));
+        }
     }
 
     output
@@ -150,5 +159,30 @@ mod tests {
 
         let list = render_list(&operations);
         assert!(list.contains("/source/book.m4b → /dest/Author/Title/book.m4b"));
+    }
+
+    #[test]
+    fn test_render_list_with_auxiliary() {
+        use crate::organize::AuxiliaryOperation;
+
+        let operations = vec![PlannedOperation {
+            source: PathBuf::from("/source/book.m4b"),
+            dest: PathBuf::from("/dest/Author/Title/book.m4b"),
+            auxiliary: vec![
+                AuxiliaryOperation {
+                    source: PathBuf::from("/source/book.cue"),
+                    dest: PathBuf::from("/dest/Author/Title/book.cue"),
+                },
+                AuxiliaryOperation {
+                    source: PathBuf::from("/source/notes.pdf"),
+                    dest: PathBuf::from("/dest/Author/Title/notes.pdf"),
+                },
+            ],
+        }];
+
+        let list = render_list(&operations);
+        assert!(list.contains("/source/book.m4b → /dest/Author/Title/book.m4b"));
+        assert!(list.contains("  + book.cue → book.cue"));
+        assert!(list.contains("  + notes.pdf → notes.pdf"));
     }
 }
