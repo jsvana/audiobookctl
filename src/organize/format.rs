@@ -223,6 +223,13 @@ impl FormatTemplate {
             "title" => metadata.title.clone(),
             "series" => metadata.series.clone(),
             "series_position" => metadata.series_position.map(|n| n.to_string()),
+            "series_title" => {
+                let title = metadata.title.as_ref()?;
+                match metadata.series_position {
+                    Some(pos) => Some(format!("{:02} - {}", pos, title)),
+                    None => Some(title.clone()),
+                }
+            }
             "narrator" => metadata.narrator.clone(),
             "year" => metadata.year.map(|n| n.to_string()),
             "genre" => metadata.genre.clone(),
@@ -374,5 +381,50 @@ mod tests {
         let result = template.generate_path(&metadata, "book.m4b");
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), vec!["author"]);
+    }
+
+    #[test]
+    fn test_series_title_with_position() {
+        let template = FormatTemplate::parse("{author}/{series_title}/{filename}").unwrap();
+        let metadata = AudiobookMetadata {
+            title: Some("The Final Empire".to_string()),
+            author: Some("Brandon Sanderson".to_string()),
+            series: Some("Mistborn".to_string()),
+            series_position: Some(1),
+            ..Default::default()
+        };
+        let path = template.generate_path(&metadata, "book.m4b").unwrap();
+        assert_eq!(
+            path,
+            PathBuf::from("Brandon Sanderson/01 - The Final Empire/book.m4b")
+        );
+    }
+
+    #[test]
+    fn test_series_title_without_position() {
+        let template = FormatTemplate::parse("{author}/{series_title}/{filename}").unwrap();
+        let metadata = AudiobookMetadata {
+            title: Some("Standalone Book".to_string()),
+            author: Some("Author".to_string()),
+            series: None,
+            series_position: None,
+            ..Default::default()
+        };
+        let path = template.generate_path(&metadata, "book.m4b").unwrap();
+        assert_eq!(path, PathBuf::from("Author/Standalone Book/book.m4b"));
+    }
+
+    #[test]
+    fn test_series_title_missing_title() {
+        let template = FormatTemplate::parse("{author}/{series_title}/{filename}").unwrap();
+        let metadata = AudiobookMetadata {
+            title: None,
+            author: Some("Author".to_string()),
+            series_position: Some(1),
+            ..Default::default()
+        };
+        let result = template.generate_path(&metadata, "book.m4b");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), vec!["series_title"]);
     }
 }
