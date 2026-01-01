@@ -62,6 +62,25 @@ pub enum Commands {
         commit_all: bool,
     },
 
+    /// Search for audiobooks by author, title, or ASIN (no file required)
+    Search {
+        /// Search by title
+        #[arg(long)]
+        title: Option<String>,
+
+        /// Search by author
+        #[arg(long)]
+        author: Option<String>,
+
+        /// Search by ASIN (direct lookup)
+        #[arg(long)]
+        asin: Option<String>,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Look up metadata from online sources (Audnexus, Open Library)
     Lookup {
         /// Path to the m4b file

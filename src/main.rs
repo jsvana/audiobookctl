@@ -35,6 +35,14 @@ fn main() -> Result<()> {
                 commit_all,
             )?;
         }
+        Commands::Search {
+            title,
+            author,
+            asin,
+            json,
+        } => {
+            commands::search::run(title.as_deref(), author.as_deref(), asin.as_deref(), json)?;
+        }
         Commands::Lookup {
             file,
             no_dry_run,

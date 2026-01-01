@@ -7,4 +7,5 @@ pub mod lookup;
 pub mod lookup_all;
 pub mod organize;
 pub mod pending;
+pub mod search;
 pub mod show;
