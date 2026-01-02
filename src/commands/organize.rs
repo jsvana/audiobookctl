@@ -331,9 +331,27 @@ fn execute_plan(
                 .with_context(|| format!("Failed to create directory {:?}", parent))?;
         }
 
+        // Compute source hash before copy
+        let source_hash = sha256_file(&op.source)
+            .with_context(|| format!("Failed to hash source {:?}", op.source))?;
+
         // Copy m4b file
         std::fs::copy(&op.source, &op.dest)
             .with_context(|| format!("Failed to copy {:?} to {:?}", op.source, op.dest))?;
+
+        // Verify destination hash matches source
+        let dest_hash = sha256_file(&op.dest)
+            .with_context(|| format!("Failed to hash destination {:?}", op.dest))?;
+
+        if source_hash != dest_hash {
+            bail!(
+                "Copy verification failed: {:?} -> {:?}\n  Source hash: {}\n  Dest hash:   {}",
+                op.source,
+                op.dest,
+                source_hash,
+                dest_hash
+            );
+        }
 
         println!("  {} {}", "✓".green(), op.dest.display());
 
@@ -383,6 +401,56 @@ fn execute_plan(
             println!("  {} {} (uncategorized)", "✓".yellow(), dest_path.display());
         }
     }
+
+    // Post-copy verification: check each destination directory has only the expected m4b
+    println!();
+    println!("{}", "Verifying copies...".cyan());
+    for op in operations {
+        if let Some(parent) = op.dest.parent() {
+            let expected_filename = op
+                .dest
+                .file_name()
+                .map(|f| f.to_string_lossy().to_string())
+                .unwrap_or_default();
+
+            // Count m4b files in the destination directory
+            let m4b_files: Vec<_> = std::fs::read_dir(parent)
+                .with_context(|| format!("Failed to read directory {:?}", parent))?
+                .filter_map(|e| e.ok())
+                .filter(|e| {
+                    e.path()
+                        .extension()
+                        .map(|ext| ext.to_string_lossy().to_lowercase() == "m4b")
+                        .unwrap_or(false)
+                })
+                .collect();
+
+            if m4b_files.len() > 1 {
+                let filenames: Vec<_> = m4b_files
+                    .iter()
+                    .map(|e| e.file_name().to_string_lossy().to_string())
+                    .collect();
+                eprintln!(
+                    "  {} Directory {:?} has {} m4b files (expected 1): {:?}",
+                    "⚠".yellow(),
+                    parent,
+                    m4b_files.len(),
+                    filenames
+                );
+            } else if m4b_files.len() == 1 {
+                let actual_filename = m4b_files[0].file_name().to_string_lossy().to_string();
+                if actual_filename != expected_filename {
+                    bail!(
+                        "Verification failed: expected {:?} in {:?}, found {:?}",
+                        expected_filename,
+                        parent,
+                        actual_filename
+                    );
+                }
+            }
+        }
+    }
+    println!("  Verification complete");
 
     println!();
     let total_m4b = operations.len()
