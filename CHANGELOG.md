@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2026-01-02
+
+### Added
+- SQLite database for local audiobook indexing
+  - Database stored at `<dest>/.audiobookctl.db`
+  - Automatic indexing during `organize --no-dry-run`
+- New `index` command to manually index existing libraries
+  - `index <dir>` - Index all .m4b files in directory
+  - `--full` - Re-index all files (ignore existing entries)
+  - `--prune` - Remove entries for files that no longer exist
+- Idempotent organize via SHA256 hash comparison
+  - Files already at destination with matching content shown as "already present"
+  - No longer treated as conflicts when content matches
+
+### Changed
+- `search` command repurposed for local database queries (API search removed)
+  - Free-text search: `search "query"`
+  - Field filters: `--title`, `--author`, `--narrator`, `--series`, `--year`, `--asin`
+  - Database auto-detection or specify with `--db`
+  - `--limit` to control result count (default: 50)
+  - `--json` for JSON output
+- `lookup` command retains API functionality for fetching metadata
+
+### Fixed
+- Organize now properly errors when metadata is missing instead of silent skip
+
 ## [0.8.0] - 2026-01-01
 
 ### Added
