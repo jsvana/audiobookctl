@@ -1,8 +1,12 @@
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::config::Config;
+use crate::database::LibraryDb;
+use crate::hash::sha256_file;
+use crate::metadata::AudiobookMetadata;
 use crate::organize::{
     scan_directory, tree, AlreadyPresent, FormatTemplate, OrganizePlan, PlannedOperation,
     UncategorizedFile,
@@ -53,6 +57,12 @@ pub fn run(
     println!("Found {} .m4b file(s)", files.len());
     println!();
 
+    // Build metadata map for database writes
+    let file_metadata: HashMap<PathBuf, AudiobookMetadata> = files
+        .iter()
+        .map(|f| (f.path.clone(), f.metadata.clone()))
+        .collect();
+
     // Build plan
     let plan = OrganizePlan::build(&files, &template, &dest);
 
@@ -87,9 +97,11 @@ pub fn run(
     if no_dry_run {
         execute_plan(
             &plan.operations,
+            &plan.already_present,
             &plan.uncategorized,
             &dest,
             allow_uncategorized,
+            &file_metadata,
         )?;
     } else {
         println!();
@@ -170,7 +182,10 @@ fn print_already_present(already_present: &[AlreadyPresent]) {
         println!(
             "  {} {} → {}",
             "≡".cyan(),
-            file.source.file_name().unwrap_or_default().to_string_lossy(),
+            file.source
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy(),
             file.dest.display()
         );
     }
@@ -261,9 +276,11 @@ fn print_list_view(
 
 fn execute_plan(
     operations: &[PlannedOperation],
+    already_present: &[AlreadyPresent],
     uncategorized: &[UncategorizedFile],
     dest: &Path,
     allow_uncategorized: bool,
+    file_metadata: &HashMap<PathBuf, AudiobookMetadata>,
 ) -> Result<()> {
     println!();
     println!("{}", "Copying files...".green());
@@ -348,6 +365,32 @@ fn execute_plan(
     } else {
         println!("{} {} file(s) copied.", "Done!".green().bold(), total_m4b);
     }
+
+    // Update database
+    println!();
+    println!("{}", "Updating database...".cyan());
+
+    let db = LibraryDb::open(dest)?;
+    let mut db_count = 0;
+
+    for op in operations {
+        if let Some(metadata) = file_metadata.get(&op.source) {
+            let relative = op.dest.strip_prefix(dest).unwrap_or(&op.dest);
+            let file_size = std::fs::metadata(&op.dest)?.len() as i64;
+            let hash = sha256_file(&op.dest)?;
+            db.upsert(&relative.to_string_lossy(), file_size, &hash, metadata)?;
+            db_count += 1;
+        }
+    }
+
+    // Touch already-present files to update their indexed_at timestamp
+    for ap in already_present {
+        let relative = ap.dest.strip_prefix(dest).unwrap_or(&ap.dest);
+        db.touch(&relative.to_string_lossy())?;
+        db_count += 1;
+    }
+
+    println!("  {} record(s) updated in database", db_count);
 
     Ok(())
 }
