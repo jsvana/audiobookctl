@@ -1,6 +1,7 @@
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use std::collections::HashMap;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use crate::config::Config;
@@ -8,8 +9,8 @@ use crate::database::LibraryDb;
 use crate::hash::sha256_file;
 use crate::metadata::AudiobookMetadata;
 use crate::organize::{
-    scan_directory, tree, AlreadyPresent, FormatTemplate, OrganizePlan, PlannedOperation,
-    UncategorizedFile,
+    scan_directory_with_progress, tree, AlreadyPresent, FormatTemplate, OrganizePlan,
+    PlanProgress, PlannedOperation, UncategorizedFile,
 };
 
 /// Run the organize command
@@ -45,9 +46,24 @@ pub fn run(
         bail!("Source is not a directory: {:?}", source);
     }
 
-    // Scan source directory
-    println!("Scanning {:?}...", source);
-    let files = scan_directory(source).context("Failed to scan source directory")?;
+    // Scan source directory with progress output
+    print!("Scanning {:?}... ", source);
+    io::stdout().flush().ok();
+    let mut scan_count = 0;
+    let files = scan_directory_with_progress(source, |path| {
+        scan_count += 1;
+        print!(
+            "\rScanning {:?}... {} ({})",
+            source,
+            scan_count,
+            path.file_name().unwrap_or_default().to_string_lossy()
+        );
+        io::stdout().flush().ok();
+    })
+    .context("Failed to scan source directory")?;
+    // Clear the progress line and show final count
+    print!("\r\x1b[K"); // Clear line
+    io::stdout().flush().ok();
 
     if files.is_empty() {
         println!("No .m4b files found in {:?}", source);
@@ -55,7 +71,6 @@ pub fn run(
     }
 
     println!("Found {} .m4b file(s)", files.len());
-    println!();
 
     // Build metadata map for database writes
     let file_metadata: HashMap<PathBuf, AudiobookMetadata> = files
@@ -63,8 +78,29 @@ pub fn run(
         .map(|f| (f.path.clone(), f.metadata.clone()))
         .collect();
 
-    // Build plan
-    let plan = OrganizePlan::build(&files, &template, &dest);
+    // Build plan with progress output for hash comparisons
+    print!("Planning...");
+    io::stdout().flush().ok();
+    let plan = OrganizePlan::build_with_progress(&files, &template, &dest, |progress| {
+        match progress {
+            PlanProgress::HashingSource(path) => {
+                print!(
+                    "\rComparing: {} (source)",
+                    path.file_name().unwrap_or_default().to_string_lossy()
+                );
+            }
+            PlanProgress::HashingDest(path) => {
+                print!(
+                    "\rComparing: {} (dest)  ",
+                    path.file_name().unwrap_or_default().to_string_lossy()
+                );
+            }
+        }
+        io::stdout().flush().ok();
+    });
+    // Clear the progress line
+    print!("\r\x1b[K");
+    io::stdout().flush().ok();
 
     // Check for missing metadata (without --allow-uncategorized)
     if !plan.uncategorized.is_empty() && !allow_uncategorized {

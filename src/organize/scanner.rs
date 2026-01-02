@@ -28,6 +28,15 @@ pub struct ScannedFile {
 
 /// Recursively scan a directory for .m4b files and read their metadata
 pub fn scan_directory(dir: &Path) -> Result<Vec<ScannedFile>> {
+    scan_directory_with_progress(dir, |_| {})
+}
+
+/// Recursively scan a directory for .m4b files and read their metadata,
+/// calling progress callback with each file path as it's scanned
+pub fn scan_directory_with_progress<F>(dir: &Path, mut on_file: F) -> Result<Vec<ScannedFile>>
+where
+    F: FnMut(&Path),
+{
     let mut files = Vec::new();
 
     for entry in WalkDir::new(dir)
@@ -39,6 +48,8 @@ pub fn scan_directory(dir: &Path) -> Result<Vec<ScannedFile>> {
 
         // Only process .m4b files
         if path.is_file() && is_m4b_file(path) {
+            on_file(path);
+
             let metadata = read_metadata(path)
                 .with_context(|| format!("Failed to read metadata from {:?}", path))?;
 

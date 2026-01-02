@@ -60,9 +60,32 @@ pub struct OrganizePlan {
     pub conflicts: Vec<Conflict>,
 }
 
+/// Progress event during plan building
+#[derive(Debug, Clone)]
+pub enum PlanProgress<'a> {
+    /// Computing hash for a source file
+    HashingSource(&'a Path),
+    /// Computing hash for a destination file
+    HashingDest(&'a Path),
+}
+
 impl OrganizePlan {
     /// Build a plan for organizing files
+    #[allow(dead_code)]
     pub fn build(files: &[ScannedFile], template: &FormatTemplate, dest_dir: &Path) -> Self {
+        Self::build_with_progress(files, template, dest_dir, |_| {})
+    }
+
+    /// Build a plan for organizing files with progress callback
+    pub fn build_with_progress<F>(
+        files: &[ScannedFile],
+        template: &FormatTemplate,
+        dest_dir: &Path,
+        mut on_progress: F,
+    ) -> Self
+    where
+        F: FnMut(PlanProgress),
+    {
         let mut operations = Vec::new();
         let mut uncategorized = Vec::new();
         let mut dest_to_sources: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
@@ -120,7 +143,12 @@ impl OrganizePlan {
             } else if exists_on_disk {
                 // Single source but dest exists - check hash
                 let source = &sources[0];
-                match (sha256_file(source), sha256_file(dest)) {
+                on_progress(PlanProgress::HashingSource(source));
+                let src_hash_result = sha256_file(source);
+                on_progress(PlanProgress::HashingDest(dest));
+                let dest_hash_result = sha256_file(dest);
+
+                match (src_hash_result, dest_hash_result) {
                     (Ok(src_hash), Ok(dest_hash)) if src_hash == dest_hash => {
                         // Same content - mark as already present
                         already_present.push(AlreadyPresent {
