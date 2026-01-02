@@ -6,6 +6,10 @@ use std::path::Path;
 
 use crate::database::{AudiobookRecord, LibraryDb};
 
+/// Maximum records to fetch when combining text search with filters.
+/// The text search results are filtered in-memory, so we fetch a larger set.
+const COMBINED_SEARCH_LIMIT: usize = 10_000;
+
 /// Run the search command
 #[allow(clippy::too_many_arguments)]
 pub fn run(
@@ -43,7 +47,7 @@ pub fn run(
     let results = if let Some(q) = query {
         if has_filters {
             // Combined: free-text AND filters
-            let text_results = db.search_text(q, 10000)?;
+            let text_results = db.search_text(q, COMBINED_SEARCH_LIMIT)?;
             filter_results(
                 text_results,
                 title,
@@ -137,7 +141,7 @@ fn filter_results(
                 }
             }
             if let Some(a) = asin {
-                if r.asin.as_ref() != Some(&a.to_string()) {
+                if r.asin.as_deref() != Some(a) {
                     return false;
                 }
             }
