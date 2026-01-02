@@ -2,6 +2,7 @@ pub mod backups;
 pub mod edit;
 pub mod fields;
 pub mod fix;
+pub mod index;
 pub mod init;
 pub mod lookup;
 pub mod lookup_all;

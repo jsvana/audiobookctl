@@ -171,6 +171,20 @@ pub enum Commands {
         show_all: bool,
     },
 
+    /// Index audiobooks in a directory for local search
+    Index {
+        /// Directory to index
+        dir: PathBuf,
+
+        /// Re-index all files (ignore existing entries)
+        #[arg(long)]
+        full: bool,
+
+        /// Remove entries for files that no longer exist
+        #[arg(long)]
+        prune: bool,
+    },
+
     /// List available format placeholders for organizing
     Fields,
 

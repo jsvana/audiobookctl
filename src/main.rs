@@ -88,6 +88,9 @@ fn main() -> Result<()> {
         } => {
             commands::fix::run(dest.as_ref(), no_dry_run, show_all)?;
         }
+        Commands::Index { dir, full, prune } => {
+            commands::index::run(&dir, full, prune)?;
+        }
         Commands::Fields => {
             commands::fields::run()?;
         }
