@@ -38,12 +38,29 @@ fn main() -> Result<()> {
             )?;
         }
         Commands::Search {
+            query,
             title,
             author,
+            narrator,
+            series,
+            year,
             asin,
+            db,
+            limit,
             json,
         } => {
-            commands::search::run(title.as_deref(), author.as_deref(), asin.as_deref(), json)?;
+            commands::search::run(
+                query.as_deref(),
+                title.as_deref(),
+                author.as_deref(),
+                narrator.as_deref(),
+                series.as_deref(),
+                year,
+                asin.as_deref(),
+                db.as_deref(),
+                limit,
+                json,
+            )?;
         }
         Commands::Lookup {
             file,

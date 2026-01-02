@@ -62,19 +62,42 @@ pub enum Commands {
         commit_all: bool,
     },
 
-    /// Search for audiobooks by author, title, or ASIN (no file required)
+    /// Search local audiobook database
     Search {
-        /// Search by title
+        /// Free-text search query
+        query: Option<String>,
+
+        /// Filter by title
         #[arg(long)]
         title: Option<String>,
 
-        /// Search by author
+        /// Filter by author
         #[arg(long)]
         author: Option<String>,
 
-        /// Search by ASIN (direct lookup)
+        /// Filter by narrator
+        #[arg(long)]
+        narrator: Option<String>,
+
+        /// Filter by series
+        #[arg(long)]
+        series: Option<String>,
+
+        /// Filter by year
+        #[arg(long)]
+        year: Option<i32>,
+
+        /// Filter by ASIN
         #[arg(long)]
         asin: Option<String>,
+
+        /// Path to database directory (auto-detected if not specified)
+        #[arg(long)]
+        db: Option<PathBuf>,
+
+        /// Maximum results to show
+        #[arg(long, default_value = "50")]
+        limit: usize,
 
         /// Output as JSON
         #[arg(long)]
