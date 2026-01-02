@@ -2,6 +2,7 @@ mod cli;
 mod commands;
 mod config;
 mod editor;
+mod hash;
 mod lookup;
 mod metadata;
 mod organize;
