@@ -374,13 +374,14 @@ fn execute_plan(
     let mut db_count = 0;
 
     for op in operations {
-        if let Some(metadata) = file_metadata.get(&op.source) {
-            let relative = op.dest.strip_prefix(dest).unwrap_or(&op.dest);
-            let file_size = std::fs::metadata(&op.dest)?.len() as i64;
-            let hash = sha256_file(&op.dest)?;
-            db.upsert(&relative.to_string_lossy(), file_size, &hash, metadata)?;
-            db_count += 1;
-        }
+        let metadata = file_metadata
+            .get(&op.source)
+            .with_context(|| format!("Missing metadata for {:?}", op.source))?;
+        let relative = op.dest.strip_prefix(dest).unwrap_or(&op.dest);
+        let file_size = std::fs::metadata(&op.dest)?.len() as i64;
+        let hash = sha256_file(&op.dest)?;
+        db.upsert(&relative.to_string_lossy(), file_size, &hash, metadata)?;
+        db_count += 1;
     }
 
     // Touch already-present files to update their indexed_at timestamp
