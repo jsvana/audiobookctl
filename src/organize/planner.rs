@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use super::format::FormatTemplate;
 use super::scanner::ScannedFile;
+use crate::hash::sha256_file;
 
 /// A planned auxiliary file operation
 #[derive(Debug, Clone)]
@@ -18,6 +19,15 @@ pub struct PlannedOperation {
     pub dest: PathBuf,
     /// Auxiliary files to copy/move with this m4b
     pub auxiliary: Vec<AuxiliaryOperation>,
+}
+
+/// A file that already exists at destination with matching content
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used by organize command display in upcoming tasks
+pub struct AlreadyPresent {
+    pub source: PathBuf,
+    pub dest: PathBuf,
+    pub hash: String,
 }
 
 /// A file that couldn't be organized due to missing metadata
@@ -41,6 +51,9 @@ pub struct Conflict {
 pub struct OrganizePlan {
     /// Operations to perform
     pub operations: Vec<PlannedOperation>,
+    /// Files already present at destination (hash match)
+    #[allow(dead_code)] // Will be used by organize command display in upcoming tasks
+    pub already_present: Vec<AlreadyPresent>,
     /// Files that couldn't be organized (missing metadata)
     pub uncategorized: Vec<UncategorizedFile>,
     /// Detected conflicts
@@ -89,28 +102,66 @@ impl OrganizePlan {
             }
         }
 
-        // Detect conflicts
+        // Detect conflicts and already-present files
         let mut conflicts = Vec::new();
+        let mut already_present = Vec::new();
+        let mut ops_to_remove = Vec::new();
 
-        for (dest, sources) in dest_to_sources {
+        for (dest, sources) in &dest_to_sources {
             let exists_on_disk = dest.exists();
 
-            if sources.len() > 1 || exists_on_disk {
+            if sources.len() > 1 {
+                // Multiple sources mapping to same dest - always a conflict
                 conflicts.push(Conflict {
-                    dest,
-                    sources,
+                    dest: dest.clone(),
+                    sources: sources.clone(),
                     exists_on_disk,
                 });
+            } else if exists_on_disk {
+                // Single source but dest exists - check hash
+                let source = &sources[0];
+                match (sha256_file(source), sha256_file(dest)) {
+                    (Ok(src_hash), Ok(dest_hash)) if src_hash == dest_hash => {
+                        // Same content - mark as already present
+                        already_present.push(AlreadyPresent {
+                            source: source.clone(),
+                            dest: dest.clone(),
+                            hash: src_hash,
+                        });
+                        ops_to_remove.push(source.clone());
+                    }
+                    (Ok(_), Ok(_)) => {
+                        // Different content - conflict
+                        conflicts.push(Conflict {
+                            dest: dest.clone(),
+                            sources: sources.clone(),
+                            exists_on_disk: true,
+                        });
+                    }
+                    (Err(_), _) | (_, Err(_)) => {
+                        // Hash error - treat as conflict to be safe
+                        conflicts.push(Conflict {
+                            dest: dest.clone(),
+                            sources: sources.clone(),
+                            exists_on_disk: true,
+                        });
+                    }
+                }
             }
         }
 
+        // Remove already-present files from operations
+        operations.retain(|op| !ops_to_remove.contains(&op.source));
+
         // Sort for consistent output
         operations.sort_by(|a, b| a.source.cmp(&b.source));
+        already_present.sort_by(|a, b| a.source.cmp(&b.source));
         uncategorized.sort_by(|a, b| a.source.cmp(&b.source));
         conflicts.sort_by(|a, b| a.dest.cmp(&b.dest));
 
         Self {
             operations,
+            already_present,
             uncategorized,
             conflicts,
         }
