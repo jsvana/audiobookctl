@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 
 use crate::config::Config;
 use crate::organize::{
-    scan_directory, tree, FormatTemplate, OrganizePlan, PlannedOperation, UncategorizedFile,
+    scan_directory, tree, AlreadyPresent, FormatTemplate, OrganizePlan, PlannedOperation,
+    UncategorizedFile,
 };
 
 /// Run the organize command
@@ -79,6 +80,9 @@ pub fn run(
         );
     }
 
+    // Show already-present files
+    print_already_present(&plan.already_present);
+
     // Execute if --no-dry-run
     if no_dry_run {
         execute_plan(
@@ -148,6 +152,28 @@ fn print_conflicts(conflicts: &[crate::organize::Conflict]) {
     }
 
     eprintln!("Resolve by renaming files or adjusting metadata.");
+}
+
+fn print_already_present(already_present: &[AlreadyPresent]) {
+    if already_present.is_empty() {
+        return;
+    }
+
+    println!();
+    println!(
+        "{}: {} file(s) already present at destination (hash match)",
+        "Info".cyan().bold(),
+        already_present.len()
+    );
+
+    for file in already_present {
+        println!(
+            "  {} {} → {}",
+            "≡".cyan(),
+            file.source.file_name().unwrap_or_default().to_string_lossy(),
+            file.dest.display()
+        );
+    }
 }
 
 fn print_tree_view(
