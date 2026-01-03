@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] - 2026-01-02
+
+### Added
+- Progress output during organize scan and hash comparison
+  - Shows file count and current filename during directory scan
+  - Shows file being hashed when comparing source/dest for idempotency
+- Post-copy verification checks
+  - Verify each copied file's hash matches source
+  - Warn if destination directory contains multiple m4b files
+  - Error if copy verification fails
+
 ## [0.9.0] - 2026-01-02
 
 ### Added
