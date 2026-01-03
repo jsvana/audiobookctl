@@ -9,7 +9,7 @@ use crate::database::LibraryDb;
 use crate::hash::sha256_file;
 use crate::metadata::AudiobookMetadata;
 use crate::organize::{
-    scan_directory_with_progress, tree, AlreadyPresent, FormatTemplate, OrganizePlan, PlanProgress,
+    scan_directory_with_progress, tree, AlreadyPresent, FormatTemplate, OrganizePlan,
     PlannedOperation, UncategorizedFile,
 };
 
@@ -82,20 +82,18 @@ pub fn run(
     print!("Planning...");
     io::stdout().flush().ok();
     let plan = OrganizePlan::build_with_progress(&files, &template, &dest, |progress| {
-        match progress {
-            PlanProgress::HashingSource(path) => {
-                print!(
-                    "\r\x1b[KComparing: {} (source)",
-                    path.file_name().unwrap_or_default().to_string_lossy()
-                );
-            }
-            PlanProgress::HashingDest(path) => {
-                print!(
-                    "\r\x1b[KComparing: {} (dest)",
-                    path.file_name().unwrap_or_default().to_string_lossy()
-                );
-            }
-        }
+        let label = if progress.is_source { "source" } else { "dest" };
+        print!(
+            "\r\x1b[KComparing ({}/{}): {} ({})",
+            progress.current,
+            progress.total,
+            progress
+                .path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy(),
+            label
+        );
         io::stdout().flush().ok();
     });
     // Clear the progress line

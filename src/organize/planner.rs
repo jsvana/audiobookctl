@@ -62,11 +62,15 @@ pub struct OrganizePlan {
 
 /// Progress event during plan building
 #[derive(Debug, Clone)]
-pub enum PlanProgress<'a> {
-    /// Computing hash for a source file
-    HashingSource(&'a Path),
-    /// Computing hash for a destination file
-    HashingDest(&'a Path),
+pub struct PlanProgress<'a> {
+    /// Current file being processed (1-indexed)
+    pub current: usize,
+    /// Total files to process
+    pub total: usize,
+    /// The file path being hashed
+    pub path: &'a Path,
+    /// Whether this is the source or destination file
+    pub is_source: bool,
 }
 
 impl OrganizePlan {
@@ -130,6 +134,14 @@ impl OrganizePlan {
         let mut already_present = Vec::new();
         let mut ops_to_remove = Vec::new();
 
+        // Count how many files need hash comparison (dest exists, single source)
+        let need_comparison: Vec<_> = dest_to_sources
+            .iter()
+            .filter(|(dest, sources)| sources.len() == 1 && dest.exists())
+            .collect();
+        let total_comparisons = need_comparison.len();
+        let mut current_comparison = 0;
+
         for (dest, sources) in &dest_to_sources {
             let exists_on_disk = dest.exists();
 
@@ -142,10 +154,21 @@ impl OrganizePlan {
                 });
             } else if exists_on_disk {
                 // Single source but dest exists - check hash
+                current_comparison += 1;
                 let source = &sources[0];
-                on_progress(PlanProgress::HashingSource(source));
+                on_progress(PlanProgress {
+                    current: current_comparison,
+                    total: total_comparisons,
+                    path: source,
+                    is_source: true,
+                });
                 let src_hash_result = sha256_file(source);
-                on_progress(PlanProgress::HashingDest(dest));
+                on_progress(PlanProgress {
+                    current: current_comparison,
+                    total: total_comparisons,
+                    path: dest,
+                    is_source: false,
+                });
                 let dest_hash_result = sha256_file(dest);
 
                 match (src_hash_result, dest_hash_result) {
