@@ -197,8 +197,14 @@ pub fn run(dest_override: Option<&PathBuf>, dry_run: bool) -> Result<()> {
     } else {
         let mut removed = 0;
 
+        // Track parent directories of removed files for later cleanup
+        let mut parents_to_check: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+
         // Remove unexpected m4b files
         for path in &unexpected_m4b {
+            if let Some(parent) = path.parent() {
+                parents_to_check.insert(parent.to_path_buf());
+            }
             std::fs::remove_file(path).with_context(|| format!("Failed to remove {:?}", path))?;
             println!("  {} {}", "Removed".red(), path.display());
             removed += 1;
@@ -206,6 +212,9 @@ pub fn run(dest_override: Option<&PathBuf>, dry_run: bool) -> Result<()> {
 
         // Remove orphan auxiliary files
         for path in &orphan_auxiliary {
+            if let Some(parent) = path.parent() {
+                parents_to_check.insert(parent.to_path_buf());
+            }
             std::fs::remove_file(path).with_context(|| format!("Failed to remove {:?}", path))?;
             println!("  {} {}", "Removed".red(), path.display());
             removed += 1;
@@ -222,6 +231,34 @@ pub fn run(dest_override: Option<&PathBuf>, dry_run: bool) -> Result<()> {
                         .with_context(|| format!("Failed to remove directory {:?}", path))?;
                     println!("  {} {}/", "Removed".red(), path.display());
                     removed += 1;
+                }
+            }
+        }
+
+        // Remove directories that became empty after orphan file removal
+        // Walk up from each parent, removing empty directories until we hit a non-empty one or root
+        let mut checked: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+        for start_dir in parents_to_check {
+            let mut current = start_dir;
+            while current.starts_with(&dir) && current != dir && !checked.contains(&current) {
+                checked.insert(current.clone());
+                if let Ok(mut entries) = std::fs::read_dir(&current) {
+                    if entries.next().is_none() {
+                        std::fs::remove_dir(&current)
+                            .with_context(|| format!("Failed to remove directory {:?}", current))?;
+                        println!("  {} {}/", "Removed".red(), current.strip_prefix(&dir).unwrap_or(&current).display());
+                        removed += 1;
+                        // Move to parent directory
+                        if let Some(parent) = current.parent() {
+                            current = parent.to_path_buf();
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break; // Directory not empty, stop walking up
+                    }
+                } else {
+                    break;
                 }
             }
         }
