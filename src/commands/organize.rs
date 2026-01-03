@@ -53,7 +53,7 @@ pub fn run(
     let files = scan_directory_with_progress(source, |path| {
         scan_count += 1;
         print!(
-            "\rScanning {:?}... {} ({})",
+            "\r\x1b[KScanning {:?}... {} ({})",
             source,
             scan_count,
             path.file_name().unwrap_or_default().to_string_lossy()
@@ -85,13 +85,13 @@ pub fn run(
         match progress {
             PlanProgress::HashingSource(path) => {
                 print!(
-                    "\rComparing: {} (source)",
+                    "\r\x1b[KComparing: {} (source)",
                     path.file_name().unwrap_or_default().to_string_lossy()
                 );
             }
             PlanProgress::HashingDest(path) => {
                 print!(
-                    "\rComparing: {} (dest)  ",
+                    "\r\x1b[KComparing: {} (dest)",
                     path.file_name().unwrap_or_default().to_string_lossy()
                 );
             }
