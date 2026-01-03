@@ -108,8 +108,8 @@ fn main() -> Result<()> {
         Commands::Index { dir, full, prune } => {
             commands::index::run(&dir, full, prune)?;
         }
-        Commands::Clean { dir, no_dry_run } => {
-            commands::clean::run(&dir, !no_dry_run)?;
+        Commands::Clean { dest, no_dry_run } => {
+            commands::clean::run(dest.as_ref(), !no_dry_run)?;
         }
         Commands::Rehash {
             dir,

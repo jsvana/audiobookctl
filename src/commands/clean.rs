@@ -3,9 +3,10 @@
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::PathBuf;
 use walkdir::WalkDir;
 
+use crate::config::Config;
 use crate::database::LibraryDb;
 
 /// Extensions recognized as auxiliary files (e.g., book.cue for book.m4b)
@@ -25,7 +26,13 @@ fn is_orphan_hash_file(path: &std::path::Path) -> Option<bool> {
 }
 
 /// Run the clean command
-pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
+pub fn run(dest_override: Option<&PathBuf>, dry_run: bool) -> Result<()> {
+    // Load config and get directory
+    let config = Config::load().context("Failed to load config")?;
+    let dir = config
+        .dest(dest_override)
+        .context("No destination specified. Set [organize] dest in config or use --dest")?;
+
     if !dir.exists() {
         bail!("Directory does not exist: {:?}", dir);
     }
@@ -34,7 +41,7 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
     }
 
     println!("Opening database in {:?}...", dir);
-    let db = LibraryDb::open(dir)?;
+    let db = LibraryDb::open(&dir)?;
 
     // Get all known paths from database
     let known_paths: HashSet<String> = db
@@ -51,7 +58,7 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
     let mut empty_dirs: Vec<std::path::PathBuf> = Vec::new();
 
     // First pass: find unexpected m4b files
-    for entry in WalkDir::new(dir)
+    for entry in WalkDir::new(&dir)
         .follow_links(true)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -72,7 +79,7 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
             continue;
         }
 
-        let relative = path.strip_prefix(dir).unwrap_or(path);
+        let relative = path.strip_prefix(&dir).unwrap_or(path);
         let relative_str = relative.to_string_lossy().to_string();
 
         if !known_paths.contains(&relative_str) {
@@ -81,7 +88,7 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
     }
 
     // Second pass: find orphan auxiliary files and hash files (no matching m4b)
-    for entry in WalkDir::new(dir)
+    for entry in WalkDir::new(&dir)
         .follow_links(true)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -110,7 +117,7 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
 
         // Check if there's a matching m4b file
         let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-        let parent = path.parent().unwrap_or(dir);
+        let parent = path.parent().unwrap_or(&dir);
         let m4b_path = parent.join(format!("{}.m4b", stem));
 
         if !m4b_path.exists() {
@@ -119,7 +126,7 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
     }
 
     // Third pass: find empty directories
-    for entry in WalkDir::new(dir)
+    for entry in WalkDir::new(&dir)
         .follow_links(true)
         .contents_first(true) // Process contents before directory
         .into_iter()
@@ -127,7 +134,7 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
     {
         let path = entry.path();
 
-        if path == dir {
+        if path == dir.as_path() {
             continue; // Don't remove the root directory
         }
 
@@ -154,7 +161,7 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
             unexpected_m4b.len()
         );
         for path in &unexpected_m4b {
-            println!("  {}", path.strip_prefix(dir).unwrap_or(path).display());
+            println!("  {}", path.strip_prefix(&dir).unwrap_or(path).display());
         }
         println!();
     }
@@ -166,7 +173,7 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
             orphan_auxiliary.len()
         );
         for path in &orphan_auxiliary {
-            println!("  {}", path.strip_prefix(dir).unwrap_or(path).display());
+            println!("  {}", path.strip_prefix(&dir).unwrap_or(path).display());
         }
         println!();
     }
@@ -178,7 +185,7 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
             empty_dirs.len()
         );
         for path in &empty_dirs {
-            println!("  {}", path.strip_prefix(dir).unwrap_or(path).display());
+            println!("  {}", path.strip_prefix(&dir).unwrap_or(path).display());
         }
         println!();
     }

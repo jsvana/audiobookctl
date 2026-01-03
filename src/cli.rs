@@ -210,8 +210,9 @@ pub enum Commands {
 
     /// Remove unexpected files from organized library
     Clean {
-        /// Directory to clean
-        dir: PathBuf,
+        /// Library directory (uses config default if not specified)
+        #[arg(long)]
+        dest: Option<PathBuf>,
 
         /// Actually remove files (default: dry-run)
         #[arg(long)]
