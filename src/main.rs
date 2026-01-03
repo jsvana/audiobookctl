@@ -108,6 +108,9 @@ fn main() -> Result<()> {
         Commands::Index { dir, full, prune } => {
             commands::index::run(&dir, full, prune)?;
         }
+        Commands::Clean { dir, no_dry_run } => {
+            commands::clean::run(&dir, !no_dry_run)?;
+        }
         Commands::Fields => {
             commands::fields::run()?;
         }

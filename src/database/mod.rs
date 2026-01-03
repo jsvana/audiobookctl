@@ -15,6 +15,7 @@ const DB_FILENAME: &str = ".audiobookctl.db";
 pub struct LibraryDb {
     conn: Connection,
     base_path: PathBuf,
+    in_transaction: bool,
 }
 
 /// A record from the database
@@ -50,9 +51,38 @@ impl LibraryDb {
         let db = Self {
             conn,
             base_path: dir.to_path_buf(),
+            in_transaction: false,
         };
         db.init_schema()?;
         Ok(db)
+    }
+
+    /// Begin a transaction for batch operations
+    pub fn begin_transaction(&mut self) -> Result<()> {
+        if !self.in_transaction {
+            self.conn.execute("BEGIN TRANSACTION", [])?;
+            self.in_transaction = true;
+        }
+        Ok(())
+    }
+
+    /// Commit the current transaction
+    pub fn commit(&mut self) -> Result<()> {
+        if self.in_transaction {
+            self.conn.execute("COMMIT", [])?;
+            self.in_transaction = false;
+        }
+        Ok(())
+    }
+
+    /// Rollback the current transaction
+    #[allow(dead_code)]
+    pub fn rollback(&mut self) -> Result<()> {
+        if self.in_transaction {
+            self.conn.execute("ROLLBACK", [])?;
+            self.in_transaction = false;
+        }
+        Ok(())
     }
 
     /// Find database by walking up from current directory

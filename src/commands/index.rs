@@ -2,12 +2,16 @@
 
 use anyhow::{Context, Result};
 use colored::Colorize;
+use std::io::{self, Write};
 use std::path::Path;
 use walkdir::WalkDir;
 
 use crate::database::LibraryDb;
 use crate::hash::sha256_file;
 use crate::metadata::read_metadata;
+
+/// How often to commit during batch indexing
+const BATCH_SIZE: usize = 50;
 
 /// Run the index command
 pub fn run(dir: &Path, full: bool, prune: bool) -> Result<()> {
@@ -19,7 +23,7 @@ pub fn run(dir: &Path, full: bool, prune: bool) -> Result<()> {
     }
 
     println!("Opening database in {:?}...", dir);
-    let db = LibraryDb::open(dir)?;
+    let mut db = LibraryDb::open(dir)?;
 
     if prune {
         println!("Pruning missing files...");
@@ -32,6 +36,10 @@ pub fn run(dir: &Path, full: bool, prune: bool) -> Result<()> {
     let mut indexed = 0;
     let mut skipped = 0;
     let mut errors = 0;
+    let mut batch_count = 0;
+
+    // Start transaction for batch writes
+    db.begin_transaction()?;
 
     for entry in WalkDir::new(dir)
         .follow_links(true)
@@ -65,22 +73,37 @@ pub fn run(dir: &Path, full: bool, prune: bool) -> Result<()> {
             }
         }
 
-        // Index file
-        print!("  Indexing {}... ", relative_str);
+        // Index file with progress
+        print!(
+            "\r\x1b[KIndexing: {} ",
+            path.file_name().unwrap_or_default().to_string_lossy()
+        );
+        io::stdout().flush().ok();
 
         match index_file(&db, dir, path) {
             Ok(()) => {
-                println!("{}", "OK".green());
                 indexed += 1;
+                batch_count += 1;
+
+                // Commit periodically to avoid huge transactions
+                if batch_count >= BATCH_SIZE {
+                    db.commit()?;
+                    db.begin_transaction()?;
+                    batch_count = 0;
+                }
             }
             Err(e) => {
-                println!("{}: {}", "ERROR".red(), e);
+                print!("\r\x1b[K");
+                println!("  {} {}: {}", "ERROR".red(), relative_str, e);
                 errors += 1;
             }
         }
     }
 
-    println!();
+    // Final commit
+    db.commit()?;
+
+    print!("\r\x1b[K");
     println!(
         "{} {} indexed, {} skipped, {} errors",
         "Done!".green().bold(),

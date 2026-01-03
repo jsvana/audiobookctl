@@ -9,8 +9,8 @@ use crate::database::LibraryDb;
 use crate::hash::sha256_file;
 use crate::metadata::AudiobookMetadata;
 use crate::organize::{
-    scan_directory_with_progress, tree, AlreadyPresent, FormatTemplate, OrganizePlan,
-    PlanProgress, PlannedOperation, UncategorizedFile,
+    scan_directory_with_progress, tree, AlreadyPresent, FormatTemplate, OrganizePlan, PlanProgress,
+    PlannedOperation, UncategorizedFile,
 };
 
 /// Run the organize command
@@ -474,8 +474,11 @@ fn execute_plan(
     println!();
     println!("{}", "Updating database...".cyan());
 
-    let db = LibraryDb::open(dest)?;
+    let mut db = LibraryDb::open(dest)?;
     let mut db_count = 0;
+
+    // Use transaction for batch updates
+    db.begin_transaction()?;
 
     for op in operations {
         let metadata = file_metadata
@@ -495,6 +498,7 @@ fn execute_plan(
         db_count += 1;
     }
 
+    db.commit()?;
     println!("  {} record(s) updated in database", db_count);
 
     Ok(())

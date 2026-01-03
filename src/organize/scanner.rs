@@ -83,16 +83,6 @@ fn is_m4b_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Check if a path is an auxiliary file
-fn is_auxiliary_file(path: &Path) -> bool {
-    path.extension()
-        .map(|ext| {
-            let ext_lower = ext.to_string_lossy().to_lowercase();
-            AUXILIARY_EXTENSIONS.contains(&ext_lower.as_str())
-        })
-        .unwrap_or(false)
-}
-
 /// Scan for auxiliary files that match an m4b file's base name
 ///
 /// For example, if the m4b is "book.m4b", this finds "book.cue", "book.pdf", etc.
@@ -104,7 +94,10 @@ fn scan_auxiliary_files_for(m4b_path: &Path) -> Vec<AuxiliaryFile> {
         return auxiliary;
     };
 
-    let Some(m4b_stem) = m4b_path.file_stem().map(|s| s.to_string_lossy().to_string()) else {
+    let Some(m4b_stem) = m4b_path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+    else {
         return auxiliary;
     };
 
@@ -136,14 +129,5 @@ mod tests {
         assert!(is_m4b_file(Path::new("/path/to/book.M4B")));
         assert!(!is_m4b_file(Path::new("/path/to/book.mp3")));
         assert!(!is_m4b_file(Path::new("/path/to/book")));
-    }
-
-    #[test]
-    fn test_is_auxiliary_file() {
-        assert!(is_auxiliary_file(Path::new("/path/to/book.cue")));
-        assert!(is_auxiliary_file(Path::new("/path/to/notes.pdf")));
-        assert!(is_auxiliary_file(Path::new("/path/to/NOTES.PDF")));
-        assert!(!is_auxiliary_file(Path::new("/path/to/book.m4b")));
-        assert!(!is_auxiliary_file(Path::new("/path/to/book.mp3")));
     }
 }

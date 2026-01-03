@@ -208,6 +208,16 @@ pub enum Commands {
         prune: bool,
     },
 
+    /// Remove unexpected files from organized library
+    Clean {
+        /// Directory to clean
+        dir: PathBuf,
+
+        /// Actually remove files (default: dry-run)
+        #[arg(long)]
+        no_dry_run: bool,
+    },
+
     /// List available format placeholders for organizing
     Fields,
 
