@@ -58,8 +58,8 @@ where
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
 
-            // Scan for auxiliary files in the m4b's parent directory
-            let auxiliary_files = path.parent().map(scan_auxiliary_files).unwrap_or_default();
+            // Scan for auxiliary files that match this m4b's base name
+            let auxiliary_files = scan_auxiliary_files_for(path);
 
             files.push(ScannedFile {
                 path: path.to_path_buf(),
@@ -93,24 +93,31 @@ fn is_auxiliary_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Scan for auxiliary files in a directory and its subdirectories
-fn scan_auxiliary_files(m4b_dir: &Path) -> Vec<AuxiliaryFile> {
+/// Scan for auxiliary files that match an m4b file's base name
+///
+/// For example, if the m4b is "book.m4b", this finds "book.cue", "book.pdf", etc.
+/// in the same directory.
+fn scan_auxiliary_files_for(m4b_path: &Path) -> Vec<AuxiliaryFile> {
     let mut auxiliary = Vec::new();
 
-    for entry in WalkDir::new(m4b_dir)
-        .follow_links(true)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        let path = entry.path();
+    let Some(parent) = m4b_path.parent() else {
+        return auxiliary;
+    };
 
-        if path.is_file() && is_auxiliary_file(path) {
-            if let Ok(relative) = path.strip_prefix(m4b_dir) {
-                auxiliary.push(AuxiliaryFile {
-                    path: path.to_path_buf(),
-                    relative_path: relative.to_path_buf(),
-                });
-            }
+    let Some(m4b_stem) = m4b_path.file_stem().map(|s| s.to_string_lossy().to_string()) else {
+        return auxiliary;
+    };
+
+    // Look for files with the same base name but auxiliary extensions
+    for ext in AUXILIARY_EXTENSIONS {
+        let aux_filename = format!("{}.{}", m4b_stem, ext);
+        let aux_path = parent.join(&aux_filename);
+
+        if aux_path.exists() && aux_path.is_file() {
+            auxiliary.push(AuxiliaryFile {
+                path: aux_path,
+                relative_path: PathBuf::from(&aux_filename),
+            });
         }
     }
 
