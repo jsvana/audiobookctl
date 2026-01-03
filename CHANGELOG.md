@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.2] - 2026-01-03
+
+### Changed
+- `clean` command now reads library directory from config by default
+  - Uses `organize.dest` config value (same as `fix` command)
+  - Optional `--dest` flag overrides config
+
 ## [0.12.1] - 2026-01-03
 
 ### Added
