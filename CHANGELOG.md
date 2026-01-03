@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.3] - 2026-01-03
+
+### Fixed
+- `clean` now removes directories that become empty after removing orphan files
+  - Previously these directories were missed because detection happened before removal
+
 ## [0.12.2] - 2026-01-03
 
 ### Changed
