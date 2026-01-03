@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::config::Config;
 use crate::database::LibraryDb;
-use crate::hash::sha256_file;
+use crate::hash::{sha256_file, write_hash_file};
 use crate::metadata::AudiobookMetadata;
 use crate::organize::{
     scan_directory_with_progress, tree, AlreadyPresent, FormatTemplate, OrganizePlan,
@@ -350,6 +350,10 @@ fn execute_plan(
                 dest_hash
             );
         }
+
+        // Write hash file for the destination
+        write_hash_file(&op.dest, &dest_hash)
+            .with_context(|| format!("Failed to write hash file for {:?}", op.dest))?;
 
         println!("  {} {}", "✓".green(), op.dest.display());
 

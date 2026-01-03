@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use super::format::FormatTemplate;
 use super::scanner::ScannedFile;
-use crate::hash::sha256_file;
+use crate::hash::get_hash;
 
 /// A planned auxiliary file operation
 #[derive(Debug, Clone)]
@@ -162,14 +162,16 @@ impl OrganizePlan {
                     path: source,
                     is_source: true,
                 });
-                let src_hash_result = sha256_file(source);
+                // Use cached hash if available (don't write cache for source during planning)
+                let src_hash_result = get_hash(source, false);
                 on_progress(PlanProgress {
                     current: current_comparison,
                     total: total_comparisons,
                     path: dest,
                     is_source: false,
                 });
-                let dest_hash_result = sha256_file(dest);
+                // Use cached hash if available (destination should have hash file)
+                let dest_hash_result = get_hash(dest, false);
 
                 match (src_hash_result, dest_hash_result) {
                     (Ok(src_hash), Ok(dest_hash)) if src_hash == dest_hash => {

@@ -218,6 +218,20 @@ pub enum Commands {
         no_dry_run: bool,
     },
 
+    /// Recalculate hash files for audiobooks
+    Rehash {
+        /// Directory to scan
+        dir: PathBuf,
+
+        /// Recalculate even if hash file exists
+        #[arg(long)]
+        force: bool,
+
+        /// Actually write hash files (default: dry-run)
+        #[arg(long)]
+        no_dry_run: bool,
+    },
+
     /// List available format placeholders for organizing
     Fields,
 

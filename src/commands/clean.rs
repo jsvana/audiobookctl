@@ -8,8 +8,21 @@ use walkdir::WalkDir;
 
 use crate::database::LibraryDb;
 
-/// Extensions recognized as auxiliary files
+/// Extensions recognized as auxiliary files (e.g., book.cue for book.m4b)
 const AUXILIARY_EXTENSIONS: &[&str] = &["cue", "pdf", "jpg", "png"];
+
+/// Check if a file is a hash file (book.m4b.sha256) and if its matching m4b exists
+fn is_orphan_hash_file(path: &std::path::Path) -> Option<bool> {
+    let filename = path.file_name()?.to_str()?;
+    if !filename.ends_with(".m4b.sha256") {
+        return None; // Not a hash file
+    }
+    // Remove .sha256 to get the m4b path
+    let m4b_filename = &filename[..filename.len() - 7]; // Remove ".sha256"
+    let parent = path.parent()?;
+    let m4b_path = parent.join(m4b_filename);
+    Some(!m4b_path.exists())
+}
 
 /// Run the clean command
 pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
@@ -67,7 +80,7 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
         }
     }
 
-    // Second pass: find orphan auxiliary files (no matching m4b)
+    // Second pass: find orphan auxiliary files and hash files (no matching m4b)
     for entry in WalkDir::new(dir)
         .follow_links(true)
         .into_iter()
@@ -76,6 +89,12 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<()> {
         let path = entry.path();
 
         if !path.is_file() {
+            continue;
+        }
+
+        // Check for orphan hash files (book.m4b.sha256 where book.m4b doesn't exist)
+        if let Some(true) = is_orphan_hash_file(path) {
+            orphan_auxiliary.push(path.to_path_buf());
             continue;
         }
 

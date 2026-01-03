@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2026-01-02
+
+### Added
+- Hash caching to avoid rehashing m4b files on every organize
+  - Stores SHA256 hashes in `.m4b.sha256` files next to audiobooks
+  - Organize reads cached hashes when available
+  - Organize writes hash files after verified copy
+- New `rehash` command to recalculate hash files
+  - `rehash <dir>` - Compute hashes for files without cache
+  - `--force` - Recalculate even if hash file exists
+  - `--no-dry-run` - Actually write hash files (dry-run by default)
+
+### Changed
+- `clean` command now recognizes `.m4b.sha256` hash files as auxiliary
+
 ## [0.11.0] - 2026-01-02
 
 ### Added

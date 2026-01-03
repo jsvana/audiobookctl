@@ -111,6 +111,13 @@ fn main() -> Result<()> {
         Commands::Clean { dir, no_dry_run } => {
             commands::clean::run(&dir, !no_dry_run)?;
         }
+        Commands::Rehash {
+            dir,
+            force,
+            no_dry_run,
+        } => {
+            commands::rehash::run(&dir, force, !no_dry_run)?;
+        }
         Commands::Fields => {
             commands::fields::run()?;
         }
