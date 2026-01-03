@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.1] - 2026-01-02
+
+### Fixed
+- Auxiliary file matching now requires matching base filename
+  - Previously all .cue/.pdf files in source directory were copied with every audiobook
+  - Now only `book.cue` is copied with `book.m4b`
+
 ## [0.10.0] - 2026-01-02
 
 ### Added
