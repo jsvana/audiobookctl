@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.12.0] - 2026-01-02
+## [0.12.1] - 2026-01-03
 
 ### Added
 - Hash caching to avoid rehashing m4b files on every organize
