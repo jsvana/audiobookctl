@@ -17,6 +17,11 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - `clean` command now recognizes `.m4b.sha256` hash files as auxiliary
 
+### Fixed
+- Hash files now written for all audiobooks during organize, including:
+  - Files detected as "already present" (previously organized)
+  - Uncategorized files
+
 ## [0.11.0] - 2026-01-02
 
 ### Added

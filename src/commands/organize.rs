@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::config::Config;
 use crate::database::LibraryDb;
-use crate::hash::{sha256_file, write_hash_file};
+use crate::hash::{hash_file_path, sha256_file, write_hash_file};
 use crate::metadata::AudiobookMetadata;
 use crate::organize::{
     scan_directory_with_progress, tree, AlreadyPresent, FormatTemplate, OrganizePlan,
@@ -400,7 +400,29 @@ fn execute_plan(
             std::fs::copy(&file.source, &dest_path)
                 .with_context(|| format!("Failed to copy {:?} to {:?}", file.source, dest_path))?;
 
+            // Write hash file for uncategorized
+            let hash = sha256_file(&dest_path)?;
+            write_hash_file(&dest_path, &hash)?;
+
             println!("  {} {} (uncategorized)", "✓".yellow(), dest_path.display());
+        }
+    }
+
+    // Write hash files for already-present files (they were compared but not copied)
+    if !already_present.is_empty() {
+        println!();
+        println!("{}", "Writing hash files for existing audiobooks...".cyan());
+        for ap in already_present {
+            // Only write if hash file doesn't already exist
+            let hash_path = hash_file_path(&ap.dest);
+            if !hash_path.exists() {
+                write_hash_file(&ap.dest, &ap.hash)?;
+                println!(
+                    "  {} {}",
+                    "+".cyan(),
+                    ap.dest.file_name().unwrap_or_default().to_string_lossy()
+                );
+            }
         }
     }
 
