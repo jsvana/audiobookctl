@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2026-01-02
+
+### Added
+- New `clean` command to remove unexpected files from organized library
+  - Detects m4b files not in database
+  - Detects orphan auxiliary files (no matching m4b)
+  - Removes empty directories
+  - Dry-run by default, use `--no-dry-run` to remove
+- Database batch transactions for faster indexing
+  - Index command batches 50 updates per transaction
+  - Organize command wraps DB updates in single transaction
+
 ## [0.10.1] - 2026-01-02
 
 ### Fixed
