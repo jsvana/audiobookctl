@@ -129,6 +129,19 @@ impl OrganizePlan {
             }
         }
 
+        // Cache source hashes for all operations (benefits subsequent runs)
+        let total_operations = operations.len();
+        for (idx, op) in operations.iter().enumerate() {
+            on_progress(PlanProgress {
+                current: idx + 1,
+                total: total_operations,
+                path: &op.source,
+                is_source: true,
+            });
+            // Compute and cache source hash (ignore errors, just for caching)
+            let _ = get_hash(&op.source, true);
+        }
+
         // Detect conflicts and already-present files
         let mut conflicts = Vec::new();
         let mut already_present = Vec::new();
