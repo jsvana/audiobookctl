@@ -198,7 +198,8 @@ pub fn run(dest_override: Option<&PathBuf>, dry_run: bool) -> Result<()> {
         let mut removed = 0;
 
         // Track parent directories of removed files for later cleanup
-        let mut parents_to_check: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+        let mut parents_to_check: std::collections::HashSet<PathBuf> =
+            std::collections::HashSet::new();
 
         // Remove unexpected m4b files
         for path in &unexpected_m4b {
@@ -246,7 +247,11 @@ pub fn run(dest_override: Option<&PathBuf>, dry_run: bool) -> Result<()> {
                     if entries.next().is_none() {
                         std::fs::remove_dir(&current)
                             .with_context(|| format!("Failed to remove directory {:?}", current))?;
-                        println!("  {} {}/", "Removed".red(), current.strip_prefix(&dir).unwrap_or(&current).display());
+                        println!(
+                            "  {} {}/",
+                            "Removed".red(),
+                            current.strip_prefix(&dir).unwrap_or(&current).display()
+                        );
                         removed += 1;
                         // Move to parent directory
                         if let Some(parent) = current.parent() {
