@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.4] - 2026-01-03
+
+### Fixed
+- Hash files now written during organize planning (including dry-run mode)
+  - Previously computed hashes were discarded, requiring recomputation on subsequent runs
+  - Now SHA256 hashes are cached to `.sha256` files whenever computed
+
 ## [0.12.3] - 2026-01-03
 
 ### Fixed
