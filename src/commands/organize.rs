@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::config::Config;
 use crate::database::LibraryDb;
-use crate::hash::{hash_file_path, sha256_file, write_hash_file};
+use crate::hash::{get_hash, hash_file_path, sha256_file, write_hash_file};
 use crate::metadata::AudiobookMetadata;
 use crate::organize::{
     scan_directory_with_progress, tree, AlreadyPresent, FormatTemplate, OrganizePlan,
@@ -510,7 +510,8 @@ fn execute_plan(
             .with_context(|| format!("Missing metadata for {:?}", op.source))?;
         let relative = op.dest.strip_prefix(dest).unwrap_or(&op.dest);
         let file_size = std::fs::metadata(&op.dest)?.len() as i64;
-        let hash = sha256_file(&op.dest)?;
+        // Use cached hash from .sha256 file written during copy
+        let hash = get_hash(&op.dest, false)?;
         db.upsert(&relative.to_string_lossy(), file_size, &hash, metadata)?;
         db_count += 1;
     }
