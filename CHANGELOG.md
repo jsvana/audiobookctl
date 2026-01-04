@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.7] - 2026-01-04
+
+### Fixed
+- Database updates during organize now use cached hashes instead of recomputing
+  - Previously SHA256 was computed twice per file (copy verification + DB update)
+  - Now reads from `.sha256` cache file, dramatically speeding up large organize runs
+
 ## [0.12.6] - 2026-01-04
 
 ### Fixed
