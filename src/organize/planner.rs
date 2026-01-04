@@ -129,17 +129,18 @@ impl OrganizePlan {
             }
         }
 
-        // Cache source hashes for all operations (benefits subsequent runs)
-        let total_operations = operations.len();
-        for (idx, op) in operations.iter().enumerate() {
+        // Cache source hashes for ALL source files (benefits subsequent runs)
+        // This includes uncategorized files, not just operations
+        let total_files = files.len();
+        for (idx, file) in files.iter().enumerate() {
             on_progress(PlanProgress {
                 current: idx + 1,
-                total: total_operations,
-                path: &op.source,
+                total: total_files,
+                path: &file.path,
                 is_source: true,
             });
             // Compute and cache source hash (ignore errors, just for caching)
-            let _ = get_hash(&op.source, true);
+            let _ = get_hash(&file.path, true);
         }
 
         // Detect conflicts and already-present files
