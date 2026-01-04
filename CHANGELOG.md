@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.12.5] - 2026-01-04
+## [0.12.6] - 2026-01-04
 
 ### Fixed
 - Hash files now written for ALL source files during organize dry-run
