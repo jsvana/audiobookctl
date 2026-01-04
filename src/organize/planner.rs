@@ -162,16 +162,16 @@ impl OrganizePlan {
                     path: source,
                     is_source: true,
                 });
-                // Use cached hash if available (don't write cache for source during planning)
-                let src_hash_result = get_hash(source, false);
+                // Use cached hash if available, write cache if computed
+                let src_hash_result = get_hash(source, true);
                 on_progress(PlanProgress {
                     current: current_comparison,
                     total: total_comparisons,
                     path: dest,
                     is_source: false,
                 });
-                // Use cached hash if available (destination should have hash file)
-                let dest_hash_result = get_hash(dest, false);
+                // Use cached hash if available, write cache if computed
+                let dest_hash_result = get_hash(dest, true);
 
                 match (src_hash_result, dest_hash_result) {
                     (Ok(src_hash), Ok(dest_hash)) if src_hash == dest_hash => {
