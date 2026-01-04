@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.12.8] - 2026-01-04
 
 ### Fixed
 - `clean` command no longer marks files as orphans when they've been moved
