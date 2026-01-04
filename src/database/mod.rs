@@ -344,6 +344,32 @@ impl LibraryDb {
             .context("Failed to count records")
     }
 
+    /// Get all known SHA256 hashes as a set
+    pub fn get_all_hashes(&self) -> Result<std::collections::HashSet<String>> {
+        let mut stmt = self.conn.prepare("SELECT sha256 FROM audiobooks")?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        rows.collect::<Result<std::collections::HashSet<_>, _>>()
+            .context("Failed to collect hashes")
+    }
+
+    /// Get record by SHA256 hash
+    pub fn get_by_hash(&self, sha256: &str) -> Result<Option<AudiobookRecord>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT id, file_path, file_size, sha256, indexed_at,
+                   title, author, narrator, series, series_position,
+                   year, description, publisher, genre, asin, isbn,
+                   duration_seconds, chapter_count
+            FROM audiobooks
+            WHERE sha256 = ?1
+            "#,
+        )?;
+
+        stmt.query_row(params![sha256], |row| self.row_to_record(row))
+            .optional()
+            .context("Failed to query by hash")
+    }
+
     /// Get base path for this database
     pub fn base_path(&self) -> &Path {
         &self.base_path

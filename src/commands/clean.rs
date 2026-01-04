@@ -3,14 +3,25 @@
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use std::collections::HashSet;
+use std::io::{self, Write};
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
 use crate::config::Config;
 use crate::database::LibraryDb;
+use crate::hash::get_hash;
 
 /// Extensions recognized as auxiliary files (e.g., book.cue for book.m4b)
 const AUXILIARY_EXTENSIONS: &[&str] = &["cue", "pdf", "jpg", "png"];
+
+/// A file whose path doesn't match the database but whose hash does
+#[derive(Debug)]
+struct MisplacedFile {
+    /// Current path on filesystem
+    current_path: PathBuf,
+    /// Path stored in database
+    db_path: String,
+}
 
 /// Check if a file is a hash file (book.m4b.sha256) and if its matching m4b exists
 fn is_orphan_hash_file(path: &std::path::Path) -> Option<bool> {
@@ -50,41 +61,81 @@ pub fn run(dest_override: Option<&PathBuf>, dry_run: bool) -> Result<()> {
         .map(|r| r.file_path)
         .collect();
 
+    // Get all known hashes for fallback matching
+    let known_hashes = db.get_all_hashes()?;
+
     println!("Database has {} indexed audiobooks", known_paths.len());
     println!("Scanning for unexpected files...");
 
-    let mut unexpected_m4b: Vec<std::path::PathBuf> = Vec::new();
-    let mut orphan_auxiliary: Vec<std::path::PathBuf> = Vec::new();
-    let mut empty_dirs: Vec<std::path::PathBuf> = Vec::new();
+    let mut unexpected_m4b: Vec<PathBuf> = Vec::new();
+    let mut misplaced_m4b: Vec<MisplacedFile> = Vec::new();
+    let mut orphan_auxiliary: Vec<PathBuf> = Vec::new();
+    let mut empty_dirs: Vec<PathBuf> = Vec::new();
 
-    // First pass: find unexpected m4b files
-    for entry in WalkDir::new(&dir)
+    // First pass: find unexpected m4b files (with hash-based fallback)
+    let m4b_files: Vec<_> = WalkDir::new(&dir)
         .follow_links(true)
         .into_iter()
         .filter_map(|e| e.ok())
-    {
+        .filter(|e| {
+            e.path().is_file()
+                && e.path()
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .map(|e| e.to_lowercase() == "m4b")
+                    .unwrap_or(false)
+        })
+        .collect();
+
+    let total_unknown = m4b_files
+        .iter()
+        .filter(|e| {
+            let relative = e.path().strip_prefix(&dir).unwrap_or(e.path());
+            !known_paths.contains(&relative.to_string_lossy().to_string())
+        })
+        .count();
+
+    let mut checked = 0;
+    for entry in &m4b_files {
         let path = entry.path();
-
-        if !path.is_file() {
-            continue;
-        }
-
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e.to_lowercase())
-            .unwrap_or_default();
-
-        if ext != "m4b" {
-            continue;
-        }
-
         let relative = path.strip_prefix(&dir).unwrap_or(path);
         let relative_str = relative.to_string_lossy().to_string();
 
-        if !known_paths.contains(&relative_str) {
-            unexpected_m4b.push(path.to_path_buf());
+        if known_paths.contains(&relative_str) {
+            continue; // Path is known, skip
         }
+
+        checked += 1;
+        print!(
+            "\r\x1b[KChecking unknown file ({}/{}): {}",
+            checked,
+            total_unknown,
+            path.file_name().unwrap_or_default().to_string_lossy()
+        );
+        io::stdout().flush().ok();
+
+        // Path not found - try hash-based matching
+        match get_hash(path, false) {
+            Ok(hash) if known_hashes.contains(&hash) => {
+                // Hash matches a known file - this is misplaced, not orphaned
+                if let Ok(Some(record)) = db.get_by_hash(&hash) {
+                    misplaced_m4b.push(MisplacedFile {
+                        current_path: path.to_path_buf(),
+                        db_path: record.file_path,
+                    });
+                }
+            }
+            _ => {
+                // Hash not found or error - truly unexpected
+                unexpected_m4b.push(path.to_path_buf());
+            }
+        }
+    }
+
+    // Clear progress line
+    if total_unknown > 0 {
+        print!("\r\x1b[K");
+        io::stdout().flush().ok();
     }
 
     // Second pass: find orphan auxiliary files and hash files (no matching m4b)
@@ -149,14 +200,44 @@ pub fn run(dest_override: Option<&PathBuf>, dry_run: bool) -> Result<()> {
 
     // Report findings
     println!();
+
+    // Report misplaced files first (these are NOT orphans)
+    if !misplaced_m4b.is_empty() {
+        println!(
+            "{} {} file(s) have moved (hash matches, path differs):",
+            "Info".cyan().bold(),
+            misplaced_m4b.len()
+        );
+        for mf in &misplaced_m4b {
+            println!(
+                "  {} → {}",
+                mf.db_path.dimmed(),
+                mf.current_path
+                    .strip_prefix(&dir)
+                    .unwrap_or(&mf.current_path)
+                    .display()
+            );
+        }
+        println!();
+        println!(
+            "{}",
+            "Run 'audiobookctl index' to update the database with new paths.".cyan()
+        );
+        println!();
+    }
+
     if unexpected_m4b.is_empty() && orphan_auxiliary.is_empty() && empty_dirs.is_empty() {
-        println!("{} No unexpected files found", "✓".green());
+        if misplaced_m4b.is_empty() {
+            println!("{} No unexpected files found", "✓".green());
+        } else {
+            println!("{} No truly orphaned files found", "✓".green());
+        }
         return Ok(());
     }
 
     if !unexpected_m4b.is_empty() {
         println!(
-            "{} {} unexpected .m4b file(s):",
+            "{} {} unexpected .m4b file(s) (not in database):",
             "Found".yellow().bold(),
             unexpected_m4b.len()
         );

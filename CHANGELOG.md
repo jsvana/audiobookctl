@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- `clean` command no longer marks files as orphans when they've been moved
+  - Now uses hash-based fallback matching when path isn't found in database
+  - Files with matching hash are reported as "misplaced" instead of "orphan"
+  - Suggests running `index` to update database with new paths
+  - Fixes issue with abbreviated folder titles causing false positives
+
+### Added
+- `get_all_hashes()` and `get_by_hash()` database methods for hash-based lookups
+
 ## [0.12.7] - 2026-01-04
 
 ### Fixed
