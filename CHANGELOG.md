@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.0] - 2026-01-05
+
+### Added
+- New `db-export` command to export audiobook database as CSV
+  - Outputs to stdout for easy piping/redirection
+  - Core metadata by default: title, author, narrator, series, series_position, year, genre, publisher
+  - `--full` flag adds: description, duration_seconds, chapter_count, isbn, asin, file_path, file_size, sha256, indexed_at
+  - Auto-detects database by walking up from current directory
+
+### Dependencies
+- Added `csv` 1.x for CSV serialization
+
 ## [0.13.2] - 2026-01-05
 
 ### Changed
