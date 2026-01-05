@@ -7,7 +7,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 use crate::database::LibraryDb;
-use crate::hash::sha256_file;
+use crate::hash::get_hash;
 use crate::metadata::read_metadata;
 
 /// How often to commit during batch indexing
@@ -119,7 +119,7 @@ pub fn run(dir: &Path, full: bool, prune: bool) -> Result<()> {
 fn index_file(db: &LibraryDb, base: &Path, path: &Path) -> Result<()> {
     let metadata = read_metadata(path).context("Failed to read metadata")?;
     let file_size = std::fs::metadata(path)?.len() as i64;
-    let hash = sha256_file(path)?;
+    let hash = get_hash(path, true)?;
     let relative = path.strip_prefix(base).unwrap_or(path);
 
     db.upsert(&relative.to_string_lossy(), file_size, &hash, &metadata)?;
