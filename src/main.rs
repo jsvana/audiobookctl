@@ -8,6 +8,7 @@ mod lookup;
 mod metadata;
 mod organize;
 mod safety;
+mod tui;
 
 use anyhow::Result;
 use clap::Parser;
