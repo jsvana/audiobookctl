@@ -5,5 +5,7 @@
 #![allow(unused_imports)]
 
 mod state;
+mod ui;
 
 pub use state::{App, FilterField, Focus, Mode};
+pub use ui::render;
