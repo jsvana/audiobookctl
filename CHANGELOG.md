@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0] - 2026-01-05
+
+### Added
+- New `browse` command for interactive TUI to explore audiobook library
+  - Two-pane layout with audiobook list and details panel
+  - Real-time search filtering with `/` key
+  - Field-specific filters (All/Author/Series/Genre/Narrator) with `f` key
+  - Vim-style navigation (`j`/`k`) plus arrow keys
+  - Pane switching with `Tab`
+  - Help overlay with `?`
+  - Scrollable details panel for long descriptions
+  - Auto-detects database or use `--db` to specify
+
+### Changed
+- `list_all` database method now public (enables TUI data loading)
+
+### Dependencies
+- Added `ratatui` 0.29 for terminal UI
+- Added `crossterm` 0.28 for cross-platform terminal handling
+
 ## [0.12.8] - 2026-01-04
 
 ### Fixed
