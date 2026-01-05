@@ -1,6 +1,6 @@
 //! Browse command - interactive TUI for audiobook library
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use crossterm::{
     event::Event,
     execute,
@@ -9,6 +9,7 @@ use crossterm::{
 use ratatui::prelude::*;
 use std::{io::stdout, path::Path, time::Duration};
 
+use crate::config::Config;
 use crate::database::LibraryDb;
 use crate::tui::{handle_key, poll_event, render, App};
 
@@ -18,12 +19,23 @@ pub fn run(db_path: Option<&Path>) -> Result<()> {
     let db = if let Some(path) = db_path {
         LibraryDb::open(path)?
     } else {
-        let cwd = std::env::current_dir()?;
-        LibraryDb::find_from(&cwd)?.ok_or_else(|| {
-            anyhow::anyhow!(
-                "No database found. Run 'audiobookctl index <dir>' first, or specify --db"
-            )
-        })?
+        // Try config destination first, then fall back to cwd
+        let config = Config::load().context("Failed to load config")?;
+        if let Some(dest) = config.dest(None) {
+            LibraryDb::find_from(&dest)?.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No database found in configured destination '{}'. Run 'audiobookctl index <dir>' first, or specify --db",
+                    dest.display()
+                )
+            })?
+        } else {
+            let cwd = std::env::current_dir()?;
+            LibraryDb::find_from(&cwd)?.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No database found and no destination configured. Set [organize] dest in config, run 'audiobookctl index <dir>', or specify --db"
+                )
+            })?
+        }
     };
 
     // Load all audiobooks
