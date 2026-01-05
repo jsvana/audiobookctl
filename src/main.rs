@@ -139,6 +139,9 @@ fn main() -> Result<()> {
         Commands::Browse { db } => {
             commands::browse::run(db.as_deref())?;
         }
+        Commands::DbExport { full } => {
+            commands::db_export::run(full)?;
+        }
         Commands::Pending { action } => {
             use cli::PendingAction;
             match action {

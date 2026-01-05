@@ -256,6 +256,14 @@ pub enum Commands {
         db: Option<PathBuf>,
     },
 
+    /// Export audiobook database as CSV
+    #[command(name = "db-export")]
+    DbExport {
+        /// Include file info (path, size, hash, indexed_at) and extended metadata
+        #[arg(long)]
+        full: bool,
+    },
+
     /// Manage pending edits
     Pending {
         #[command(subcommand)]

@@ -1,6 +1,7 @@
 pub mod backups;
 pub mod browse;
 pub mod clean;
+pub mod db_export;
 pub mod edit;
 pub mod fields;
 pub mod fix;
