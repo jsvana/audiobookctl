@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.1] - 2026-01-05
+
+### Added
+- `browse` command now uses configured destination directory by default
+  - Reads `organize.dest` from config when no `--db` flag specified
+  - Falls back to current directory search if no config destination set
+
 ## [0.13.0] - 2026-01-05
 
 ### Added
