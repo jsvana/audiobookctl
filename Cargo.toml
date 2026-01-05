@@ -1,6 +1,6 @@
 [package]
 name = "audiobookctl"
-version = "0.13.1"
+version = "0.13.2"
 edition = "2021"
 description = "CLI tool for reading, editing, and organizing m4b audiobook metadata"
 license = "MIT"

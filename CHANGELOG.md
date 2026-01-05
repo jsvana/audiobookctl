@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.2] - 2026-01-05
+
+### Changed
+- `index` command now uses cached hash files to speed up re-indexing
+  - First index computes and caches SHA256 hashes to `.sha256` files
+  - Subsequent runs read from cache instead of re-hashing entire files
+  - Dramatically faster for large libraries on re-index
+
 ## [0.13.1] - 2026-01-05
 
 ### Added
