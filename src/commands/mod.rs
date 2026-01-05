@@ -1,4 +1,5 @@
 pub mod backups;
+pub mod browse;
 pub mod clean;
 pub mod edit;
 pub mod fields;

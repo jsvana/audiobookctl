@@ -249,6 +249,13 @@ pub enum Commands {
         action: BackupsAction,
     },
 
+    /// Browse audiobook library interactively
+    Browse {
+        /// Path to database directory (auto-detected if not specified)
+        #[arg(long)]
+        db: Option<PathBuf>,
+    },
+
     /// Manage pending edits
     Pending {
         #[command(subcommand)]
