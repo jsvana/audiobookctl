@@ -324,7 +324,7 @@ impl LibraryDb {
     }
 
     /// List all records (for prune operation)
-    fn list_all(&self) -> Result<Vec<AudiobookRecord>> {
+    pub fn list_all(&self) -> Result<Vec<AudiobookRecord>> {
         let mut stmt = self.conn.prepare(
             r#"
             SELECT id, file_path, file_size, sha256, indexed_at,
